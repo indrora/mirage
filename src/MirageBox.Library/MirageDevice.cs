@@ -12,6 +12,9 @@ public class MirageDevice : IMirageDevice
     private readonly string _serialNumber;
     private readonly int _buttonCount;
     private readonly int _encoderCount;
+    private readonly int _imageWidth;
+    private readonly int _imageHeight;
+    private readonly int _rotationDegrees;
     private readonly DeviceProtocolVariant _protocolVariant;
     private CancellationTokenSource? _listenerCts;
     private Task? _listenerTask;
@@ -38,6 +41,16 @@ public class MirageDevice : IMirageDevice
     /// Gets the number of buttons on the device.
     /// </summary>
     public int ButtonCount => _buttonCount;
+
+    /// <summary>
+    /// Gets the native image width (in pixels) expected by this device's display panels.
+    /// </summary>
+    public int ImageWidth => _imageWidth;
+
+    /// <summary>
+    /// Gets the native image height (in pixels) expected by this device's display panels.
+    /// </summary>
+    public int ImageHeight => _imageHeight;
 
     /// <summary>
     /// Gets the number of encoders/knobs on the device.
@@ -71,17 +84,26 @@ public class MirageDevice : IMirageDevice
     /// <param name="serialNumber">The serial number of the device.</param>
     /// <param name="buttonCount">The number of buttons on the device.</param>
     /// <param name="encoderCount">The number of encoders on the device.</param>
+    /// <param name="imageWidth">Native display panel image width in pixels.</param>
+    /// <param name="imageHeight">Native display panel image height in pixels.</param>
+    /// <param name="rotationDegrees">Clockwise degrees to rotate images before upload (0, 90, 180, or -90).</param>
     /// <param name="protocolVariant">Input report protocol variant for this device.</param>
     public MirageDevice(
         IHidDevice hidDevice,
         string serialNumber,
         int buttonCount,
         int encoderCount,
+        int imageWidth,
+        int imageHeight,
+        int rotationDegrees,
         DeviceProtocolVariant protocolVariant)
     {
         _hidDevice = hidDevice ?? throw new ArgumentNullException(nameof(hidDevice));
         _buttonCount = buttonCount;
         _encoderCount = encoderCount;
+        _imageWidth = imageWidth;
+        _imageHeight = imageHeight;
+        _rotationDegrees = rotationDegrees;
         _protocolVariant = protocolVariant;
         _serialNumber = serialNumber ?? "Unknown";
         _lastButtonStates = new bool[buttonCount];
@@ -191,7 +213,7 @@ public class MirageDevice : IMirageDevice
     {
         ThrowIfDisposed();
 
-        if (buttonIndex < 0 || buttonIndex >= _buttonCount)
+        if (buttonIndex < 0 || buttonIndex >= _buttonCount && buttonIndex != 0xFF)
             throw new ArgumentOutOfRangeException(nameof(buttonIndex));
 
         await Task.Run(() =>
@@ -284,12 +306,12 @@ public class MirageDevice : IMirageDevice
 
     private byte[] TransformImageForDevice(byte[] imageData)
     {
-        if (_protocolVariant != DeviceProtocolVariant.StreamControllerSe)
+        if (_rotationDegrees == 0)
             return imageData;
 
         try
         {
-            return RotateJpeg90Clockwise(imageData);
+            return RotateJpeg(imageData, _rotationDegrees);
         }
         catch
         {
@@ -298,25 +320,40 @@ public class MirageDevice : IMirageDevice
         }
     }
 
-    private static byte[] RotateJpeg90Clockwise(byte[] imageData)
+    private static byte[] RotateJpeg(byte[] imageData, int degrees)
     {
-        using var sourceBitmap = SKBitmap.Decode(imageData);
-        if (sourceBitmap is null)
+        // Normalize to 0/90/180/270.
+        degrees = ((degrees % 360) + 360) % 360;
+        if (degrees == 0)
             return imageData;
 
-        using var rotated = new SKBitmap(sourceBitmap.Height, sourceBitmap.Width, sourceBitmap.ColorType, sourceBitmap.AlphaType);
+        using var src = SKBitmap.Decode(imageData);
+        if (src is null)
+            return imageData;
 
-        for (int y = 0; y < sourceBitmap.Height; y++)
+        bool transposed = degrees == 90 || degrees == 270;
+        using var dst = new SKBitmap(
+            transposed ? src.Height : src.Width,
+            transposed ? src.Width  : src.Height,
+            src.ColorType, src.AlphaType);
+
+        for (int sy = 0; sy < src.Height; sy++)
         {
-            for (int x = 0; x < sourceBitmap.Width; x++)
+            for (int sx = 0; sx < src.Width; sx++)
             {
-                int dstX = sourceBitmap.Height - 1 - y;
-                int dstY = x;
-                rotated.SetPixel(dstX, dstY, sourceBitmap.GetPixel(x, y));
+                var pixel = src.GetPixel(sx, sy);
+                (int dx, int dy) = degrees switch
+                {
+                    90  => (src.Height - 1 - sy, sx),            // 90° CW
+                    180 => (src.Width  - 1 - sx, src.Height - 1 - sy), // 180°
+                    270 => (sy, src.Width - 1 - sx),              // 90° CCW
+                    _   => (sx, sy)
+                };
+                dst.SetPixel(dx, dy, pixel);
             }
         }
 
-        using var image = SKImage.FromBitmap(rotated);
+        using var image = SKImage.FromBitmap(dst);
         using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 100);
         return encoded.ToArray();
     }

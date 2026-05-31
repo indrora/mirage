@@ -81,6 +81,8 @@ try
     await device.InitializeAsync();
     await device.SetBrightnessAsync(80);
     await device.SetLedBrightnessAsync(100);
+    await device.ClearAllDisplaysAsync();
+    await device.ClearButtonDisplayAsync(0xFf); // clear all buttons
 
     for (int panel = 0; panel < Math.Min(6, device.ButtonCount); panel++)
     {

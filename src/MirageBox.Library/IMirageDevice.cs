@@ -31,6 +31,16 @@ public interface IMirageDevice : IDisposable
     int EncoderCount { get; }
 
     /// <summary>
+    /// Gets the native image width (in pixels) for this device's display panels.
+    /// </summary>
+    int ImageWidth { get; }
+
+    /// <summary>
+    /// Gets the native image height (in pixels) for this device's display panels.
+    /// </summary>
+    int ImageHeight { get; }
+
+    /// <summary>
     /// Raised when a button is pressed or released.
     /// </summary>
     event EventHandler<ButtonEventArgs>? ButtonChanged;

@@ -32,8 +32,8 @@ internal static class HidReportParser
         if (report == null || report.Length < 2)
             return null;
 
-        if (variant == DeviceProtocolVariant.StreamControllerSe)
-            return ParseStreamControllerSeReport(report, buttonCount, encoderCount);
+        if (variant == DeviceProtocolVariant.AckPrefix)
+            return ParseAckPrefixReport(report, buttonCount, encoderCount);
 
         return ParseBitfieldReport(report, buttonCount, encoderCount);
     }
@@ -76,9 +76,10 @@ internal static class HidReportParser
         }
     }
 
-    // Matches strmctrl mapping where control/state are commonly in bytes 9/10,
-    // but some HID stacks expose shifted layouts, so we scan the report.
-    private static DeviceInput? ParseStreamControllerSeReport(byte[] report, int buttonCount, int encoderCount)
+    // Parses ACK-prefix input format (protocol v1+).
+    // Input reports start with "ACK" (0x41 0x43 0x4B); event code at offset 9, state at offset 10.
+    // Protocol v3 uses state 0x01=press, 0x02=release. Earlier versions use 0=release, 1=press.
+    private static DeviceInput? ParseAckPrefixReport(byte[] report, int buttonCount, int encoderCount)
     {
         if (report.Length < 2)
             return null;
@@ -122,7 +123,9 @@ internal static class HidReportParser
         // 0x01..0x06 are display button presses.
         if (control >= 0x01 && control <= 0x06)
         {
-            if (state is not (0 or 1))
+            // Accept state 0x00/0x01 (v0/v1 protocol) and 0x01/0x02 (v3 protocol).
+            // Pressed = 0x01; released = 0x00 or 0x02.
+            if (state > 2)
                 return false;
 
             int displayIndex = control - 1;
@@ -135,7 +138,7 @@ internal static class HidReportParser
 
         if (control == 0x25 || control == 0x30 || control == 0x31)
         {
-            if (state is not (0 or 1))
+            if (state > 2)
                 return false;
 
             int buttonIndex = control switch
@@ -154,7 +157,7 @@ internal static class HidReportParser
 
         if (control == 0x35 || control == 0x33 || control == 0x34)
         {
-            if (state is not (0 or 1))
+            if (state > 2)
                 return false;
 
             int encoderIndex = control switch
@@ -251,7 +254,8 @@ internal static class HidReportParser
     /// </summary>
     public static byte[] CreateClearButtonCommand(int buttonIndex)
     {
-        return new byte[] { 0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x43, 0x4C, 0x45, 0x00, 0x00, (byte)(buttonIndex + 1) };
+        // Params at data offset 10: [0x00, 0x00, 0x00, key_index (1-based)].
+        return new byte[] { 0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x43, 0x4C, 0x45, 0x00, 0x00, 0x00, 0x00, 0x00, (byte)(buttonIndex + 1) };
     }
 
     /// <summary>
@@ -259,7 +263,8 @@ internal static class HidReportParser
     /// </summary>
     public static byte[] CreateClearAllCommand()
     {
-        return new byte[] { 0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x43, 0x4C, 0x45, 0x00, 0x00, 0xFF };
+        // Params: [0x00, 0x00, 0x00, 0xFF] — 0xFF clears all keys.
+        return new byte[] { 0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x43, 0x4C, 0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF };
     }
 
     /// <summary>
@@ -270,12 +275,15 @@ internal static class HidReportParser
         if (buttonIndex < 0)
             throw new ArgumentOutOfRangeException(nameof(buttonIndex));
 
-        if (imageLength < 0 || imageLength > ushort.MaxValue)
+        if (imageLength < 0)
             throw new ArgumentOutOfRangeException(nameof(imageLength));
 
+        // Params at data offset 10: uint32_be(image_data_length), key_index (1-based).
         return new byte[]
         {
-            0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x42, 0x41, 0x54, 0x00, 0x00,
+            0x00, 0x43, 0x52, 0x54, 0x00, 0x00, 0x42, 0x41, 0x54, 
+            (byte)(imageLength >> 24),
+            (byte)(imageLength >> 16),
             (byte)(imageLength >> 8),
             (byte)(imageLength & 0xFF),
             (byte)(buttonIndex + 1)
@@ -323,6 +331,15 @@ internal record DeviceInput(
 
 public enum DeviceProtocolVariant
 {
+    /// <summary>
+    /// Legacy snapshot bitfield input format used by original Mirabox devices.
+    /// </summary>
     LegacyBitfield,
-    StreamControllerSe
+
+    /// <summary>
+    /// ACK-prefix input format used by StreamDock / CRT-protocol devices (protocol v1+).
+    /// Input reports begin with "ACK" (0x41 0x43 0x4B); event code at byte 9, state at byte 10.
+    /// Protocol v3 devices use state 0x01=press, 0x02=release.
+    /// </summary>
+    AckPrefix
 }
