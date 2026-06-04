@@ -41,8 +41,9 @@ var rangeIndex = new int[PanelCount];
 float rainbowHue = 0f;
 
 var stateLock = new object();
-var renderLock = new SemaphoreSlim(1, 1);
 int selectedPanel = 0;
+var dirty = new bool[PanelCount];
+for (int i = 0; i < PanelCount; i++) dirty[i] = true;
 
 long uploadCount = 0;
 double totalUploadMs = 0;
@@ -51,53 +52,20 @@ const int recentUploadWindow = 200;
 var metricsLock = new object();
 var metricsStopwatch = Stopwatch.StartNew();
 var statsCts = new CancellationTokenSource();
-var animationCts = new CancellationTokenSource();
-
-var animController = new AnimationController { TargetFrameRate = 60 };
-animController.OnTick = dt =>
-{
-    lock (stateLock)
-    {
-        rainbowHue = (rainbowHue + (float)(dt * 140.0)) % 360f;
-    }
-};
-
-void UpdateAnimatedSlots()
-{
-    for (int i = 0; i < PanelCount; i++)
-    {
-        bool active;
-        lock (stateLock)
-        {
-            active = themeIndex[i] == 0 || i == selectedPanel;
-        }
-        animController.SetSlotEnabled(i, active);
-    }
-}
+var renderCts = new CancellationTokenSource();
 
 try
 {
     Console.WriteLine("Initializing [0]...");
     await device.InitializeAsync();
-    await device.SetBrightnessAsync(80);
-    await device.SetLedBrightnessAsync(100);
-    await device.ClearAllDisplaysAsync();
-    await device.ClearButtonDisplayAsync(0xFf); // clear all buttons
+    await device.SetBrightnessAsync(10);
 
-    for (int panel = 0; panel < Math.Min(6, device.ButtonCount); panel++)
-    {
-        int captured = panel;
-        animController.AddSlot(captured, () => RenderPanelAsync(captured));
-        await RenderPanelAsync(panel);
-    }
-    UpdateAnimatedSlots();
 
     device.ButtonChanged += (s, e) =>
     {
         if (!e.IsPressed)
             return;
 
-        // Top 6 buttons select active panel. Bottom buttons (6/7/8) change aspects.
         if (e.ButtonIndex is >= 0 and < 6)
         {
             int previous;
@@ -105,41 +73,31 @@ try
             {
                 previous = selectedPanel;
                 selectedPanel = e.ButtonIndex;
+                dirty[previous] = true;
+                dirty[e.ButtonIndex] = true;
             }
-
-            _ = RenderPanelAsync(previous);
-            _ = RenderPanelAsync(selectedPanel);
-            UpdateAnimatedSlots();
-            Console.WriteLine($"Selected panel: {selectedPanel + 1}");
+            Console.WriteLine($"Selected panel: {e.ButtonIndex + 1}");
             return;
         }
 
-        int panel;
         lock (stateLock)
         {
-            panel = selectedPanel;
+            int panel = selectedPanel;
             if (e.ButtonIndex == 6)
-            {
                 gaugeTypeIndex[panel] = (gaugeTypeIndex[panel] + 1) % 4;
-            }
             else if (e.ButtonIndex == 7)
-            {
                 themeIndex[panel] = (themeIndex[panel] + 1) % 4;
-            }
             else if (e.ButtonIndex == 8)
             {
                 rangeIndex[panel] = (rangeIndex[panel] + 1) % 3;
                 values[panel] = 0;
             }
             else
-            {
                 return;
-            }
-        }
 
-        _ = RenderPanelAsync(panel);
-        UpdateAnimatedSlots();
-        Console.WriteLine($"Panel {panel + 1} aspects: type={gaugeTypeIndex[panel]} theme={themeIndex[panel]} range={rangeIndex[panel]}");
+            dirty[panel] = true;
+            Console.WriteLine($"Panel {panel + 1} aspects: type={gaugeTypeIndex[panel]} theme={themeIndex[panel]} range={rangeIndex[panel]}");
+        }
     };
 
     device.EncoderRotated += (s, e) =>
@@ -147,24 +105,18 @@ try
         if (e.EncoderIndex != 0)
             return;
 
-        int panel;
-        int newValue;
-
         lock (stateLock)
         {
-            panel = selectedPanel;
+            int panel = selectedPanel;
             var (min, max) = GetRange(rangeIndex[panel]);
             values[panel] = Math.Clamp(values[panel] + e.RotationDelta, min, max);
-            newValue = values[panel];
+            dirty[panel] = true;
         }
-
-        _ = RenderPanelAsync(panel);
-        //Console.WriteLine($"Panel {panel + 1} value: {newValue}");
     };
 
     await device.StartListeningAsync();
     _ = PrintStatsLoopAsync(statsCts.Token);
-    _ = animController.RunAsync(animationCts.Token);
+    _ = RenderLoopAsync(renderCts.Token);
 
     Console.WriteLine("Ready:");
     Console.WriteLine("- Press panel buttons 1-6 to select a value.");
@@ -173,52 +125,61 @@ try
 
     await Task.Delay(Timeout.Infinite);
 
-    async Task RenderPanelAsync(int panel, bool skipIfBusy = false)
+    async Task RenderLoopAsync(CancellationToken token)
     {
-        if (panel < 0 || panel >= Math.Min(6, device.ButtonCount))
-            return;
+        const int targetFps = 120;
+        var frameDuration = TimeSpan.FromSeconds(1.0 / targetFps);
 
-        if (skipIfBusy)
+        while (!token.IsCancellationRequested)
         {
-            if (!renderLock.Wait(0))
-                return;
-        }
-        else
-        {
-            await renderLock.WaitAsync();
-        }
+            var frameStart = Stopwatch.GetTimestamp();
 
-        try
-        {
-            byte[] imageData;
-            lock (stateLock)
-            {
-                var gauge = BuildGaugeForPanel(panel, typeface, selectedPanel, values, gaugeTypeIndex, themeIndex, rangeIndex, rainbowHue);
-                imageData = gauge.RenderJpeg(100);
-            }
-
+                rainbowHue = (rainbowHue + (float)(frameDuration.TotalSeconds * 140.0)) % 360f;
+ 
+            bool anyUploaded = false;
             var sw = Stopwatch.StartNew();
-            await device.SetButtonImageAsync(panel, imageData);
-            sw.Stop();
 
-            lock (metricsLock)
+
+            for (int panel = 0; panel < Math.Min(PanelCount, device.ButtonCount); panel++)
             {
-                uploadCount++;
-                totalUploadMs += sw.Elapsed.TotalMilliseconds;
-                recentUploadMs.Enqueue(sw.Elapsed.TotalMilliseconds);
-                while (recentUploadMs.Count > recentUploadWindow)
+                try
                 {
-                    recentUploadMs.Dequeue();
+                    byte[] imageData;
+                    
+                        var gauge = BuildGaugeForPanel(panel, typeface, selectedPanel, values, gaugeTypeIndex, themeIndex, rangeIndex, rainbowHue);
+                        imageData = gauge.RenderJpeg(100);
+                    
+
+                    await device.SetButtonImageNoFlushAsync(panel, imageData);
+                    anyUploaded = true;
+
+                    lock (metricsLock)
+                        uploadCount++;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Render error on panel {panel + 1}: {ex.Message}");
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Render error on panel {panel + 1}: {ex.Message}");
-        }
-        finally
-        {
-            renderLock.Release();
+
+            if (anyUploaded)
+            {
+                await device.FlushAsync();
+                sw.Stop();
+
+                lock (metricsLock)
+                {
+                    totalUploadMs += sw.Elapsed.TotalMilliseconds;
+                    recentUploadMs.Enqueue(sw.Elapsed.TotalMilliseconds);
+                    while (recentUploadMs.Count > recentUploadWindow)
+                        recentUploadMs.Dequeue();
+                }
+            }
+
+            var elapsed = Stopwatch.GetElapsedTime(frameStart);
+            var remaining = frameDuration - elapsed;
+            if (remaining > TimeSpan.Zero)
+                await Task.Delay(remaining, token);
         }
     }
 
@@ -256,8 +217,6 @@ try
             Console.WriteLine($"[gfx] uploads={count} avg={avgMs:F1}ms p95={p95Ms:F1}ms rate={ups:F2}/s");
         }
     }
-
-                                                                                                                                                                                                                                                                                                                                                                                                             
 }
 catch (Exception ex)
 {
@@ -268,7 +227,7 @@ finally
 {
     Console.WriteLine("\nStopping...");
     statsCts.Cancel();
-    animationCts.Cancel();
+    renderCts.Cancel();
     await device.StopListeningAsync();
     device.Dispose();
 }
@@ -295,7 +254,7 @@ static ITinyGauge BuildGaugeForPanel(
     var (primary, secondary, background, text) = GetTheme(themeIndex[panel], rainbowHue);
 
     gauge
-        .SetSize(72, 72)
+        .SetSize(64, 64)
         .SetRange(min, max)
         .SetValue(values[panel])
         .SetLabel($"Panel {panel + 1}")

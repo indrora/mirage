@@ -105,11 +105,21 @@ public interface IMirageDevice : IDisposable
     Task ClearAllDisplaysAsync();
 
     /// <summary>
-    /// Sets the image for a display panel button.
+    /// Sets the image for a display panel button and flushes.
     /// </summary>
     /// <param name="buttonIndex">Zero-based display panel index.</param>
     /// <param name="imageData">JPEG image bytes.</param>
     Task SetButtonImageAsync(int buttonIndex, byte[] imageData);
+
+    /// <summary>
+    /// Sets the image for a display panel button without flushing.
+    /// </summary>
+    Task SetButtonImageNoFlushAsync(int buttonIndex, byte[] imageData);
+
+    /// <summary>
+    /// Flushes pending image changes to the display.
+    /// </summary>
+    Task FlushAsync();
 
     /// <summary>
     /// Keeps the device alive with a periodic heartbeat.

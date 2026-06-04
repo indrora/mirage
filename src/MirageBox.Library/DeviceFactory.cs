@@ -2,12 +2,7 @@ namespace MirageBox;
 
 using HidLibrary;
 
-/// <summary>
-/// Provides factory methods for discovering and connecting to Mirabox/Ajazz/Somfon devices.
-/// </summary>
-public static class DeviceFactory
-{
-    private sealed record DeviceProfile(
+    public sealed record DeviceProfile(
         string Name,
         ushort VendorId,
         ushort ProductId,
@@ -17,8 +12,16 @@ public static class DeviceFactory
         int ImageWidth,
         int ImageHeight,
         int RotationDegrees,
+        int ScreenWidth,
+        int ScreenHeight,
         byte HidReportId,
+
         DeviceProtocolVariant ProtocolVariant);
+/// <summary>
+/// Provides factory methods for discovering and connecting to Mirabox/Ajazz/Somfon devices.
+/// </summary>
+public static class DeviceFactory
+{
 
     /// <summary>
     /// Known device profiles from the StreamDock SDK, ordered by priority.
@@ -31,37 +34,37 @@ public static class DeviceFactory
     private static readonly Dictionary<(ushort, ushort), DeviceProfile> DevicesByVidPid = new()
     {
         // StreamController SE / Somfon rebadge (6 display + 3 side buttons, 3 knobs)
-        { (0x1500, 0x3001), new("StreamControllerSE", 0x1500, 0x3001, 9, 3, 0, 64, 64, 90, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x1500, 0x3001), new("StreamControllerSE", 0x1500, 0x3001, 9, 3, 0, 64, 64, 90, 320,240, 0x00, DeviceProtocolVariant.AckPrefix) },
 
         // N4Pro — 2×5 buttons, 4 knobs, 4 LED rings (firmware 0x1008 and 0x1021 are same device)
-        { (0x5548, 0x1008), new("N4Pro", 0x5548, 0x1008, 10, 4, 4, 112, 112, 180, 0x00, DeviceProtocolVariant.AckPrefix) },
-        { (0x5548, 0x1021), new("N4Pro", 0x5548, 0x1021, 10, 4, 4, 112, 112, 180, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x5548, 0x1008), new("N4Pro", 0x5548, 0x1008, 10, 4, 4, 112, 112, 180, 800,480, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x5548, 0x1021), new("N4Pro", 0x5548, 0x1021, 10, 4, 4, 112, 112, 180, 800,480, 0x00, DeviceProtocolVariant.AckPrefix) },
 
         // N4 — 2×5 buttons, 4 knobs, no LEDs (two firmware revisions)
-        { (0x6602, 0x1001), new("N4", 0x6602, 0x1001, 10, 4, 0, 112, 112, 180, 0x00, DeviceProtocolVariant.AckPrefix) },
-        { (0x6603, 0x1007), new("N4", 0x6603, 0x1007, 10, 4, 0, 112, 112, 180, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x6602, 0x1001), new("N4", 0x6602, 0x1001, 10, 4, 0, 112, 112, 180, 800,480, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x6603, 0x1007), new("N4", 0x6603, 0x1007, 10, 4, 0, 112, 112, 180, 800,480, 0x00, DeviceProtocolVariant.AckPrefix) },
 
         // XL — 4×8 buttons, 2 toggle encoders, 6 LEDs (two firmware revisions)
-        { (0x5548, 0x1028), new("XL", 0x5548, 0x1028, 32, 2, 6, 80, 80, 180, 0x00, DeviceProtocolVariant.AckPrefix) },
-        { (0x5548, 0x1031), new("XL", 0x5548, 0x1031, 32, 2, 6, 80, 80, 180, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x5548, 0x1028), new("XL", 0x5548, 0x1028, 32, 2, 6, 80, 80, 180, 1024,600, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x5548, 0x1031), new("XL", 0x5548, 0x1031, 32, 2, 6, 80, 80, 180, 1024,600, 0x00, DeviceProtocolVariant.AckPrefix) },
 
         // M18 — 3×5 buttons, no encoders, 24 LEDs (two firmware revisions)
-        { (0x6603, 0x1009), new("M18", 0x6603, 0x1009, 15, 0, 24, 64, 64, 0, 0x00, DeviceProtocolVariant.AckPrefix) },
-        { (0x6603, 0x1012), new("M18", 0x6603, 0x1012, 15, 0, 24, 64, 64, 0, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x6603, 0x1009), new("M18", 0x6603, 0x1009, 15, 0, 24, 64, 64, 0, 480,272, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x6603, 0x1012), new("M18", 0x6603, 0x1012, 15, 0, 24, 64, 64, 0, 480,272, 0x00, DeviceProtocolVariant.AckPrefix) },
 
         // K1Pro — 2×3 buttons, 3 knobs; uses HID report ID 0x04 (two firmware revisions)
-        { (0x6603, 0x1015), new("K1Pro", 0x6603, 0x1015, 6, 3, 0, 64, 64, 90, 0x04, DeviceProtocolVariant.AckPrefix) },
-        { (0x6603, 0x1019), new("K1Pro", 0x6603, 0x1019, 6, 3, 0, 64, 64, 90, 0x04, DeviceProtocolVariant.AckPrefix) },
+        { (0x6603, 0x1015), new("K1Pro", 0x6603, 0x1015, 6, 3, 0, 64, 64, 90,800,480, 0x04, DeviceProtocolVariant.AckPrefix) },
+        { (0x6603, 0x1019), new("K1Pro", 0x6603, 0x1019, 6, 3, 0, 64, 64, 90, 800,480, 0x04, DeviceProtocolVariant.AckPrefix) },
 
         // N1 — 3×5 buttons, 1 knob, portrait orientation (two firmware revisions)
-        { (0x6603, 0x1011), new("N1", 0x6603, 0x1011, 15, 1, 0, 96, 96, 0, 0x00, DeviceProtocolVariant.AckPrefix) },
-        { (0x6603, 0x1000), new("N1", 0x6603, 0x1000, 15, 1, 0, 96, 96, 0, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x6603, 0x1011), new("N1", 0x6603, 0x1011, 15, 1, 0, 96, 96, 0, 480,854, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x6603, 0x1000), new("N1", 0x6603, 0x1000, 15, 1, 0, 96, 96, 0, 480,854, 0x00, DeviceProtocolVariant.AckPrefix) },
 
         // N3 — 2×3 buttons, 3 knobs
-        { (0x6602, 0x1003), new("N3", 0x6602, 0x1003, 6, 3, 0, 64, 64, -90, 0x00, DeviceProtocolVariant.AckPrefix) },
+        { (0x6602, 0x1003), new("N3", 0x6602, 0x1003, 6, 3, 0, 64, 64, -90, 320,240, 0x00, DeviceProtocolVariant.AckPrefix) },
 
         // Legacy Mirabox/Ajazz (snapshot bitfield protocol)
-        { (0x294B, 0x0171), new("Mirabox", 0x294B, 0x0171, 15, 4, 0, 72, 72, 0, 0x00, DeviceProtocolVariant.LegacyBitfield) },
+        { (0x294B, 0x0171), new("Mirabox", 0x294B, 0x0171, 15, 4, 0, 72, 72, 0, 0,0 , 0x00, DeviceProtocolVariant.LegacyBitfield) },
     };
 
     /// <summary>
@@ -111,12 +114,7 @@ public static class DeviceFactory
                 devices.Add(new MirageDevice(
                     hidDevice,
                     serialNumber,
-                    profile.ButtonCount,
-                    profile.EncoderCount,
-                    profile.ImageWidth,
-                    profile.ImageHeight,
-                    profile.RotationDegrees,
-                    profile.ProtocolVariant));
+                    profile));
 
                 deviceIndex++;
             }

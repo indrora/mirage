@@ -1,6 +1,7 @@
 namespace MirageBox;
 
 using HidLibrary;
+using MirageBox.Library;
 using SkiaSharp;
 
 /// <summary>
@@ -10,17 +11,16 @@ public class MirageDevice : IMirageDevice
 {
     private readonly IHidDevice _hidDevice;
     private readonly string _serialNumber;
-    private readonly int _buttonCount;
-    private readonly int _encoderCount;
-    private readonly int _imageWidth;
-    private readonly int _imageHeight;
-    private readonly int _rotationDegrees;
-    private readonly DeviceProtocolVariant _protocolVariant;
+    private readonly DeviceProfile _profile;
+    private DeviceProtocolVariant ProtocolVariant => _profile.ProtocolVariant;
     private CancellationTokenSource? _listenerCts;
     private Task? _listenerTask;
     private bool[] _lastButtonStates;
     private bool[] _lastEncoderStates;
     private bool _disposed;
+
+
+    public DeviceProfile Profile => _profile;
 
     /// <summary>
     /// Gets the vendor ID of the device.
@@ -40,22 +40,22 @@ public class MirageDevice : IMirageDevice
     /// <summary>
     /// Gets the number of buttons on the device.
     /// </summary>
-    public int ButtonCount => _buttonCount;
+    public int ButtonCount => _profile.ButtonCount;
 
     /// <summary>
     /// Gets the native image width (in pixels) expected by this device's display panels.
     /// </summary>
-    public int ImageWidth => _imageWidth;
+    public int ImageWidth => _profile.ImageWidth;
 
     /// <summary>
     /// Gets the native image height (in pixels) expected by this device's display panels.
     /// </summary>
-    public int ImageHeight => _imageHeight;
+    public int ImageHeight => _profile.ImageHeight;
 
     /// <summary>
     /// Gets the number of encoders/knobs on the device.
     /// </summary>
-    public int EncoderCount => _encoderCount;
+    public int EncoderCount => _profile.EncoderCount;
 
     /// <summary>
     /// Raised when a button is pressed or released.
@@ -82,32 +82,17 @@ public class MirageDevice : IMirageDevice
     /// </summary>
     /// <param name="hidDevice">The underlying HID device.</param>
     /// <param name="serialNumber">The serial number of the device.</param>
-    /// <param name="buttonCount">The number of buttons on the device.</param>
-    /// <param name="encoderCount">The number of encoders on the device.</param>
-    /// <param name="imageWidth">Native display panel image width in pixels.</param>
-    /// <param name="imageHeight">Native display panel image height in pixels.</param>
-    /// <param name="rotationDegrees">Clockwise degrees to rotate images before upload (0, 90, 180, or -90).</param>
-    /// <param name="protocolVariant">Input report protocol variant for this device.</param>
+    /// <param name="profile">The device profile containing configuration details.</param>
     public MirageDevice(
         IHidDevice hidDevice,
         string serialNumber,
-        int buttonCount,
-        int encoderCount,
-        int imageWidth,
-        int imageHeight,
-        int rotationDegrees,
-        DeviceProtocolVariant protocolVariant)
+        DeviceProfile profile)
     {
         _hidDevice = hidDevice ?? throw new ArgumentNullException(nameof(hidDevice));
-        _buttonCount = buttonCount;
-        _encoderCount = encoderCount;
-        _imageWidth = imageWidth;
-        _imageHeight = imageHeight;
-        _rotationDegrees = rotationDegrees;
-        _protocolVariant = protocolVariant;
+        _profile = profile ?? throw new ArgumentNullException(nameof(profile));
         _serialNumber = serialNumber ?? "Unknown";
-        _lastButtonStates = new bool[buttonCount];
-        _lastEncoderStates = new bool[encoderCount];
+        _lastButtonStates = new bool[_profile.ButtonCount];
+        _lastEncoderStates = new bool[_profile.EncoderCount];
     }
 
     /// <summary>
@@ -122,12 +107,13 @@ public class MirageDevice : IMirageDevice
             if (!_hidDevice.IsOpen)
                 _hidDevice.OpenDevice();
 
-            // Send initialization commands
-            var initCmd = HidReportParser.CreateInitCommand();
-            _hidDevice.Write(initCmd);
-        });
+            _hidDevice.Write(DeviceCommands.formatCommand(DeviceCommands.Command.WakeScreen));
+            _hidDevice.Write(DeviceCommands.formatCommand(DeviceCommands.Command.KeepAlive));
+            _hidDevice.Write(DeviceCommands.formatCommand(DeviceCommands.Command.ClearButtonImage, 0x00, 0x00,0xFF, 0x00)); // Clear all buttons
+            _hidDevice.Write(DeviceCommands.formatCommand(DeviceCommands.Command.Flush));
+            _hidDevice.Write(DeviceCommands.formatCommand(DeviceCommands.Command.SetBrightness, 0, 0, 0x32)); 
 
-        await Task.Delay(100); // Brief delay for device to process
+        });
     }
 
     /// <summary>
@@ -213,7 +199,7 @@ public class MirageDevice : IMirageDevice
     {
         ThrowIfDisposed();
 
-        if (buttonIndex < 0 || buttonIndex >= _buttonCount && buttonIndex != 0xFF)
+        if (buttonIndex < 0 || buttonIndex >= ButtonCount && buttonIndex != 0xFF)
             throw new ArgumentOutOfRangeException(nameof(buttonIndex));
 
         await Task.Run(() =>
@@ -238,13 +224,22 @@ public class MirageDevice : IMirageDevice
     }
 
     /// <summary>
-    /// Sets the image for a display panel button.
+    /// Sets the image for a display panel button and flushes.
     /// </summary>
     public async Task SetButtonImageAsync(int buttonIndex, byte[] imageData)
     {
+        await SetButtonImageNoFlushAsync(buttonIndex, imageData);
+        await FlushAsync();
+    }
+
+    /// <summary>
+    /// Sets the image for a display panel button without flushing.
+    /// </summary>
+    public async Task SetButtonImageNoFlushAsync(int buttonIndex, byte[] imageData)
+    {
         ThrowIfDisposed();
 
-        if (buttonIndex < 0 || buttonIndex >= _buttonCount)
+        if (buttonIndex < 0 || buttonIndex >= ButtonCount)
             throw new ArgumentOutOfRangeException(nameof(buttonIndex));
 
         if (imageData is null || imageData.Length == 0)
@@ -258,7 +253,18 @@ public class MirageDevice : IMirageDevice
             _hidDevice.Write(beginCmd);
 
             WriteImagePayload(payload);
+        });
+    }
 
+    /// <summary>
+    /// Flushes pending image changes to the display.
+    /// </summary>
+    public async Task FlushAsync()
+    {
+        ThrowIfDisposed();
+
+        await Task.Run(() =>
+        {
             var stopCmd = HidReportParser.CreateStopCommand();
             _hidDevice.Write(stopCmd);
         });
@@ -306,12 +312,12 @@ public class MirageDevice : IMirageDevice
 
     private byte[] TransformImageForDevice(byte[] imageData)
     {
-        if (_rotationDegrees == 0)
+        if (_profile.RotationDegrees == 0)
             return imageData;
 
         try
         {
-            return RotateJpeg(imageData, _rotationDegrees);
+            return RotateJpeg(imageData, _profile.RotationDegrees);
         }
         catch
         {
@@ -372,7 +378,7 @@ public class MirageDevice : IMirageDevice
                     continue;
                 }
 
-                var input = HidReportParser.ParseReport(report.Data, _buttonCount, _encoderCount, _protocolVariant);
+                var input = HidReportParser.ParseReport(report.Data, _profile.ButtonCount, _profile.EncoderCount, _profile.ProtocolVariant);
                 if (input is null)
                 {
                     await Task.Delay(10, cancellationToken);
@@ -382,7 +388,7 @@ public class MirageDevice : IMirageDevice
                 if (input.UseStateDiff)
                 {
                     // Snapshot-based protocol: compare full state arrays.
-                    for (int i = 0; i < _buttonCount && i < input.ButtonStates.Length; i++)
+                    for (int i = 0; i < _profile.ButtonCount && i < input.ButtonStates.Length; i++)
                     {
                         if (input.ButtonStates[i] != _lastButtonStates[i])
                         {
@@ -391,7 +397,7 @@ public class MirageDevice : IMirageDevice
                         }
                     }
 
-                    for (int i = 0; i < _encoderCount && i < input.EncoderPressStates.Length; i++)
+                    for (int i = 0; i < _profile.EncoderCount && i < input.EncoderPressStates.Length; i++)
                     {
                         if (input.EncoderPressStates[i] != _lastEncoderStates[i])
                         {
@@ -427,7 +433,7 @@ public class MirageDevice : IMirageDevice
                     }
                 }
 
-                for (int i = 0; i < _encoderCount && i < input.EncoderRotations.Length; i++)
+                for (int i = 0; i < _profile.EncoderCount && i < input.EncoderRotations.Length; i++)
                 {
                     if (input.EncoderRotations[i] != 0)
                     {
