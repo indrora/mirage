@@ -6,26 +6,37 @@ using System.Diagnostics;
 
 Console.WriteLine("=== Mirabox/Ajazz/Somfon .NET Control Surface Demo ===\n");
 
-Console.WriteLine("Discovering devices...");
-var devices = DeviceFactory.DiscoverDevices().ToList();
+IMirageDevice device;
 
-if (devices.Count == 0)
+if (args.Contains("--simulator"))
 {
-    Console.WriteLine("No devices found. Please connect a Mirabox/Ajazz/Somfon device.");
-    return;
+    Console.WriteLine("Using simulator device.");
+    device = new SimulatorDevice();
 }
-
-Console.WriteLine($"Found {devices.Count} device(s).\n");
-
-for (int i = 0; i < devices.Count; i++)
+else
 {
-    var d = devices[i];
-    Console.WriteLine($"[{i}] 0x{d.VendorId:X4}:0x{d.ProductId:X4}  Serial={d.SerialNumber}  Buttons={d.ButtonCount}  Encoders={d.EncoderCount}");
-}
-Console.WriteLine();
+    Console.WriteLine("Discovering devices...");
+    var devices = DeviceFactory.DiscoverDevices().ToList();
 
-var device = devices[0];
-Console.WriteLine("Using device [0] for graphics-speed test.\n");
+    if (devices.Count == 0)
+    {
+        Console.WriteLine("No devices found. Please connect a Mirabox/Ajazz/Somfon device.");
+        Console.WriteLine("Tip: run with --simulator to use the software simulator.");
+        return;
+    }
+
+    Console.WriteLine($"Found {devices.Count} device(s).\n");
+
+    for (int i = 0; i < devices.Count; i++)
+    {
+        var d = devices[i];
+        Console.WriteLine($"[{i}] 0x{d.VendorId:X4}:0x{d.ProductId:X4}  Serial={d.SerialNumber}  Buttons={d.ButtonCount}  Encoders={d.EncoderCount}");
+    }
+    Console.WriteLine();
+
+    device = devices[0];
+    Console.WriteLine("Using device [0] for graphics-speed test.\n");
+}
 
 var typeface = ResourceLoader.TryLoadTypeface("arbata.ttf");
 if (typeface is null)
@@ -113,6 +124,25 @@ try
             dirty[panel] = true;
         }
     };
+    device.EncoderPressed += (s, e) =>
+    {
+        if (e.EncoderIndex != 0)
+            return;
+
+        lock (stateLock)
+        {
+            gaugeTypeIndex[selectedPanel] = (gaugeTypeIndex[selectedPanel] + 1) % 4;
+            dirty[selectedPanel] = true;
+            Console.WriteLine($"Panel {selectedPanel + 1} aspects: type={gaugeTypeIndex[selectedPanel]} theme={themeIndex[selectedPanel]} range={rangeIndex[selectedPanel]}");
+        }
+    };
+
+    var disconnectCts = new CancellationTokenSource();
+    device.Disconnected += (_, _) =>
+    {
+        Console.WriteLine("\nDevice disconnected.");
+        disconnectCts.Cancel();
+    };
 
     await device.StartListeningAsync();
     _ = PrintStatsLoopAsync(statsCts.Token);
@@ -123,7 +153,8 @@ try
     Console.WriteLine("- Turn big knob (encoder 1) to change selected value.");
     Console.WriteLine("- Upload performance stats print every 2 seconds.\n");
 
-    await Task.Delay(Timeout.Infinite);
+    try { await Task.Delay(Timeout.Infinite, disconnectCts.Token); }
+    catch (OperationCanceledException) { }
 
     async Task RenderLoopAsync(CancellationToken token)
     {
@@ -146,7 +177,7 @@ try
                 {
                     byte[] imageData;
                     
-                        var gauge = BuildGaugeForPanel(panel, typeface, selectedPanel, values, gaugeTypeIndex, themeIndex, rangeIndex, rainbowHue);
+                        var gauge = BuildGaugeForPanel(panel, typeface, selectedPanel, values, gaugeTypeIndex, themeIndex, rangeIndex, rainbowHue, device.ImageWidth, device.ImageHeight);
                         imageData = gauge.RenderJpeg(100);
                     
 
@@ -240,7 +271,9 @@ static ITinyGauge BuildGaugeForPanel(
     int[] gaugeTypeIndex,
     int[] themeIndex,
     int[] rangeIndex,
-    float rainbowHue)
+    float rainbowHue,
+    int imageWidth = 64,
+    int imageHeight = 64)
 {
     var gauge = gaugeTypeIndex[panel] switch
     {
@@ -254,7 +287,7 @@ static ITinyGauge BuildGaugeForPanel(
     var (primary, secondary, background, text) = GetTheme(themeIndex[panel], rainbowHue);
 
     gauge
-        .SetSize(64, 64)
+        .SetSize(imageWidth, imageHeight)
         .SetRange(min, max)
         .SetValue(values[panel])
         .SetLabel($"Panel {panel + 1}")

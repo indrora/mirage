@@ -79,6 +79,11 @@ public class MirageDevice : IMirageDevice
     public event EventHandler<EncoderEventArgs>? EncoderRotated;
 
     /// <summary>
+    /// Raised when the device is disconnected or otherwise becomes unavailable.
+    /// </summary>
+    public event EventHandler? Disconnected;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="MirageDevice"/> class.
     /// </summary>
     public MirageDevice(
@@ -467,11 +472,12 @@ public class MirageDevice : IMirageDevice
         }
         catch (OperationCanceledException)
         {
-            // Expected when cancellation is requested
+            // Expected on deliberate stop — not a disconnect.
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error in listener loop: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Device listener error: {ex.Message}");
+            Disconnected?.Invoke(this, EventArgs.Empty);
         }
     }
 

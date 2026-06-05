@@ -7,10 +7,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>MirageBox.Library</AssemblyName>
     <RootNamespace>MirageBox</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="HIDSharp" Version="2.1.0" />
+    <PackageReference Include="Silk.NET.SDL" Version="2.21.0" />
     <PackageReference Include="SkiaSharp" Version="2.88.8" />
   </ItemGroup>
 

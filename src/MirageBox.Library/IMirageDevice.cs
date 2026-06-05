@@ -61,6 +61,11 @@ public interface IMirageDevice : IDisposable
     event EventHandler<EncoderEventArgs>? EncoderRotated;
 
     /// <summary>
+    /// Raised when the device is disconnected or otherwise becomes unavailable.
+    /// </summary>
+    event EventHandler? Disconnected;
+
+    /// <summary>
     /// Initializes the device for communication.
     /// </summary>
     Task InitializeAsync();
