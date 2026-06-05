@@ -1,6 +1,6 @@
 namespace MirageBox;
 
-using HidLibrary;
+using HidSharp;
 
     public sealed record DeviceProfile(
         string Name,
@@ -74,48 +74,48 @@ public static class DeviceFactory
     {
         var devices = new List<IMirageDevice>();
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var seenProfileNames = new HashSet<string>();
         int deviceIndex = 0;
 
-        // Build a set of unique VID/PID pairs to enumerate each only once.
         var uniqueVidPids = new HashSet<(ushort, ushort)>(DevicesByVidPid.Keys);
 
         foreach (var (vid, pid) in uniqueVidPids)
         {
             var profile = DevicesByVidPid[(vid, pid)];
-            
-            foreach (var hidDevice in HidDevices.Enumerate(vid, pid))
+
+            foreach (var hidDevice in DeviceList.Local.GetHidDevices(vid, pid))
             {
-                // Deduplicate by path. If path is empty, use profile+index as fallback.
                 var path = hidDevice.DevicePath ?? "";
                 if (!seenPaths.Add(path))
                     continue;
 
-                var serialNumber = $"{profile.Name}-{deviceIndex}";
-                
-                byte[] hidSerial;
-
-                hidDevice.ReadSerialNumber(out hidSerial);
-                // turn the byte array into a readable string, if possible
-                if (hidSerial.Length > 0)
+                // Skip non-vendor-defined interfaces (e.g. the keyboard endpoint).
+                // Vendor-defined usage pages are 0xFF00–0xFFFF; standard pages are low values.
+                try
                 {
-                    var hidSerialStr = System.Text.Encoding.UTF8.GetString(hidSerial).TrimEnd('\0');
-                    if (!string.IsNullOrWhiteSpace(hidSerialStr))
-                        serialNumber = hidSerialStr;
+                    var descriptor = hidDevice.GetReportDescriptor();
+                    uint topUsage = descriptor.DeviceItems.FirstOrDefault()?.Usages.GetAllValues().FirstOrDefault() ?? 0u;
+                    int usagePage = (int)(topUsage >> 16);
+                    if ((usagePage & 0xFF00) != 0xFF00)
+                        continue;
                 }
+                catch { continue; }
 
-                // Vendor-defined usage pages are 0xFF00–0xFFFF; keyboard/system pages are low values.
-                // Windows also blocks access to the keyboard HID interface, so skip it regardless.
-                if (((ushort)hidDevice.Capabilities.UsagePage & 0xFF00) != 0xFF00)
-                    continue;
+                string serialNumber;
+                try
+                {
+                    var raw = hidDevice.GetSerialNumber();
+                    serialNumber = string.IsNullOrWhiteSpace(raw)
+                        ? $"{profile.Name}-{deviceIndex}"
+                        : raw;
+                }
+                catch
+                {
+                    serialNumber = $"{profile.Name}-{deviceIndex}";
+                }
 
                 Console.WriteLine($"Found device: VID={vid:X4} PID={pid:X4} Serial='{serialNumber}' Path='{path}' Profile='{profile.Name}'");
 
-                devices.Add(new MirageDevice(
-                    hidDevice,
-                    serialNumber,
-                    profile));
-
+                devices.Add(new MirageDevice(hidDevice, serialNumber, profile));
                 deviceIndex++;
             }
         }

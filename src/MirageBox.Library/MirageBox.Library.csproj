@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="HidLibrary" Version="3.3.40" />
+    <PackageReference Include="HIDSharp" Version="2.1.0" />
     <PackageReference Include="SkiaSharp" Version="2.88.8" />
   </ItemGroup>
 

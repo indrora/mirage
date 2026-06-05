@@ -1,6 +1,6 @@
 namespace MirageBox;
 
-using HidLibrary;
+using HidSharp;
 using MirageBox.Library;
 using SkiaSharp;
 
@@ -9,7 +9,8 @@ using SkiaSharp;
 /// </summary>
 public class MirageDevice : IMirageDevice
 {
-    private readonly IHidDevice _hidDevice;
+    private readonly HidDevice _hidDevice;
+    private HidStream? _stream;
     private readonly string _serialNumber;
     private readonly DeviceProfile _profile;
     private DeviceProtocolVariant ProtocolVariant => _profile.ProtocolVariant;
@@ -25,12 +26,12 @@ public class MirageDevice : IMirageDevice
     /// <summary>
     /// Gets the vendor ID of the device.
     /// </summary>
-    public int VendorId => _hidDevice.Attributes.VendorId;
+    public int VendorId => _hidDevice.VendorID;
 
     /// <summary>
     /// Gets the product ID of the device.
     /// </summary>
-    public int ProductId => _hidDevice.Attributes.ProductId;
+    public int ProductId => _hidDevice.ProductID;
 
     /// <summary>
     /// Gets the serial number of the device.
@@ -80,11 +81,8 @@ public class MirageDevice : IMirageDevice
     /// <summary>
     /// Initializes a new instance of the <see cref="MirageDevice"/> class.
     /// </summary>
-    /// <param name="hidDevice">The underlying HID device.</param>
-    /// <param name="serialNumber">The serial number of the device.</param>
-    /// <param name="profile">The device profile containing configuration details.</param>
     public MirageDevice(
-        IHidDevice hidDevice,
+        HidDevice hidDevice,
         string serialNumber,
         DeviceProfile profile)
     {
@@ -104,15 +102,14 @@ public class MirageDevice : IMirageDevice
 
         await Task.Run(() =>
         {
-            if (!_hidDevice.IsOpen)
-                _hidDevice.OpenDevice();
+            if (_stream == null)
+                _stream = _hidDevice.Open();
 
-            _hidDevice.Write(DeviceCommands.formatCommand(DeviceCommands.Command.WakeScreen));
-            _hidDevice.Write(DeviceCommands.formatCommand(DeviceCommands.Command.KeepAlive));
-            _hidDevice.Write(DeviceCommands.formatCommand(DeviceCommands.Command.ClearButtonImage, 0x00, 0x00,0xFF, 0x00)); // Clear all buttons
-            _hidDevice.Write(DeviceCommands.formatCommand(DeviceCommands.Command.Flush));
-            _hidDevice.Write(DeviceCommands.formatCommand(DeviceCommands.Command.SetBrightness, 0, 0, 0x32)); 
-
+            WriteReport(DeviceCommands.formatCommand(DeviceCommands.Command.WakeScreen));
+            WriteReport(DeviceCommands.formatCommand(DeviceCommands.Command.KeepAlive));
+            WriteReport(DeviceCommands.formatCommand(DeviceCommands.Command.ClearButtonImage, 0x00, 0x00, 0xFF, 0x00));
+            WriteReport(DeviceCommands.formatCommand(DeviceCommands.Command.Flush));
+            WriteReport(DeviceCommands.formatCommand(DeviceCommands.Command.SetBrightness, 0, 0, 0x32));
         });
     }
 
@@ -159,8 +156,7 @@ public class MirageDevice : IMirageDevice
 
         await Task.Run(() =>
         {
-            var cmd = HidReportParser.CreateBrightnessCommand(percent);
-            _hidDevice.Write(cmd);
+            WriteReport(HidReportParser.CreateBrightnessCommand(percent));
         });
     }
 
@@ -173,8 +169,7 @@ public class MirageDevice : IMirageDevice
 
         await Task.Run(() =>
         {
-            var cmd = HidReportParser.CreateLedBrightnessCommand(percent);
-            _hidDevice.Write(cmd);
+            WriteReport(HidReportParser.CreateLedBrightnessCommand(percent));
         });
     }
 
@@ -187,8 +182,7 @@ public class MirageDevice : IMirageDevice
 
         await Task.Run(() =>
         {
-            var cmd = HidReportParser.CreateLedColorCommand(colors);
-            _hidDevice.Write(cmd);
+            WriteReport(HidReportParser.CreateLedColorCommand(colors));
         });
     }
 
@@ -204,8 +198,7 @@ public class MirageDevice : IMirageDevice
 
         await Task.Run(() =>
         {
-            var cmd = HidReportParser.CreateClearButtonCommand(buttonIndex);
-            _hidDevice.Write(cmd);
+            WriteReport(HidReportParser.CreateClearButtonCommand(buttonIndex));
         });
     }
 
@@ -218,8 +211,7 @@ public class MirageDevice : IMirageDevice
 
         await Task.Run(() =>
         {
-            var cmd = HidReportParser.CreateClearAllCommand();
-            _hidDevice.Write(cmd);
+            WriteReport(HidReportParser.CreateClearAllCommand());
         });
     }
 
@@ -249,9 +241,7 @@ public class MirageDevice : IMirageDevice
 
         await Task.Run(() =>
         {
-            var beginCmd = HidReportParser.CreateSetImageCommand(buttonIndex, payload.Length);
-            _hidDevice.Write(beginCmd);
-
+            WriteReport(HidReportParser.CreateSetImageCommand(buttonIndex, payload.Length));
             WriteImagePayload(payload);
         });
     }
@@ -265,8 +255,7 @@ public class MirageDevice : IMirageDevice
 
         await Task.Run(() =>
         {
-            var stopCmd = HidReportParser.CreateStopCommand();
-            _hidDevice.Write(stopCmd);
+            WriteReport(HidReportParser.CreateStopCommand());
         });
     }
 
@@ -279,13 +268,23 @@ public class MirageDevice : IMirageDevice
 
         await Task.Run(() =>
         {
-            var cmd = HidReportParser.CreateKeepAliveCommand();
-            _hidDevice.Write(cmd);
+            WriteReport(HidReportParser.CreateKeepAliveCommand());
         });
+    }
+
+    private void WriteReport(byte[] cmd)
+    {
+        EnsureStream();
+        int reportLength = GetOutputReportByteLength();
+        var report = new byte[reportLength];
+        int copyLen = Math.Min(cmd.Length, reportLength);
+        Buffer.BlockCopy(cmd, 0, report, 0, copyLen);
+        _stream!.Write(report);
     }
 
     private void WriteImagePayload(byte[] imageData)
     {
+        EnsureStream();
         int reportLength = GetOutputReportByteLength();
         int payloadLength = reportLength - 1; // byte 0 is report ID
 
@@ -296,18 +295,28 @@ public class MirageDevice : IMirageDevice
             var report = new byte[reportLength];
             report[0] = 0x00;
             Buffer.BlockCopy(imageData, offset, report, 1, chunkLength);
-            _hidDevice.Write(report);
+            _stream!.Write(report);
             offset += chunkLength;
         }
     }
 
     private int GetOutputReportByteLength()
     {
-        int reportLength = _hidDevice.Capabilities.OutputReportByteLength;
-        if (reportLength <= 1)
+        try
+        {
+            int len = _hidDevice.GetMaxOutputReportLength();
+            return len > 1 ? len : 65;
+        }
+        catch
+        {
             return 65;
+        }
+    }
 
-        return reportLength;
+    private void EnsureStream()
+    {
+        if (_stream == null)
+            _stream = _hidDevice.Open();
     }
 
     private byte[] TransformImageForDevice(byte[] imageData)
@@ -321,14 +330,12 @@ public class MirageDevice : IMirageDevice
         }
         catch
         {
-            // Keep original payload if decode/encode fails.
             return imageData;
         }
     }
 
     private static byte[] RotateJpeg(byte[] imageData, int degrees)
     {
-        // Normalize to 0/90/180/270.
         degrees = ((degrees % 360) + 360) % 360;
         if (degrees == 0)
             return imageData;
@@ -350,9 +357,9 @@ public class MirageDevice : IMirageDevice
                 var pixel = src.GetPixel(sx, sy);
                 (int dx, int dy) = degrees switch
                 {
-                    90  => (src.Height - 1 - sy, sx),            // 90° CW
-                    180 => (src.Width  - 1 - sx, src.Height - 1 - sy), // 180°
-                    270 => (sy, src.Width - 1 - sx),              // 90° CCW
+                    90  => (src.Height - 1 - sy, sx),
+                    180 => (src.Width  - 1 - sx, src.Height - 1 - sy),
+                    270 => (sy, src.Width - 1 - sx),
                     _   => (sx, sy)
                 };
                 dst.SetPixel(dx, dy, pixel);
@@ -368,17 +375,33 @@ public class MirageDevice : IMirageDevice
     {
         try
         {
+            EnsureStream();
+            int inputLength = _hidDevice.GetMaxInputReportLength();
+            var buffer = new byte[inputLength];
+
             while (!cancellationToken.IsCancellationRequested)
             {
-                var report = await Task.Run(() => _hidDevice.Read(), cancellationToken);
-
-                if (report == null || report.Data == null)
+                int count;
+                try
+                {
+                    count = await Task.Run(() => _stream!.Read(buffer, 0, buffer.Length), cancellationToken);
+                }
+                catch (TimeoutException)
                 {
                     await Task.Delay(10, cancellationToken);
                     continue;
                 }
 
-                var input = HidReportParser.ParseReport(report.Data, _profile.ButtonCount, _profile.EncoderCount, _profile.ProtocolVariant);
+                if (count <= 0)
+                {
+                    await Task.Delay(10, cancellationToken);
+                    continue;
+                }
+
+                var reportData = new byte[count];
+                Buffer.BlockCopy(buffer, 0, reportData, 0, count);
+
+                var input = HidReportParser.ParseReport(reportData, _profile.ButtonCount, _profile.EncoderCount, _profile.ProtocolVariant);
                 if (input is null)
                 {
                     await Task.Delay(10, cancellationToken);
@@ -387,7 +410,6 @@ public class MirageDevice : IMirageDevice
 
                 if (input.UseStateDiff)
                 {
-                    // Snapshot-based protocol: compare full state arrays.
                     for (int i = 0; i < _profile.ButtonCount && i < input.ButtonStates.Length; i++)
                     {
                         if (input.ButtonStates[i] != _lastButtonStates[i])
@@ -411,7 +433,6 @@ public class MirageDevice : IMirageDevice
                 }
                 else
                 {
-                    // Event-delta protocol: apply only the changed control from this packet.
                     if (input.ChangedButtonIndex.HasValue && input.ChangedButtonState.HasValue)
                     {
                         int index = input.ChangedButtonIndex.Value;
@@ -498,8 +519,9 @@ public class MirageDevice : IMirageDevice
             catch { /* Ignore */ }
 
             _listenerCts?.Dispose();
-            _hidDevice?.CloseDevice();
-            _hidDevice?.Dispose();
+            _stream?.Close();
+            _stream?.Dispose();
+            _stream = null;
         }
 
         _disposed = true;
