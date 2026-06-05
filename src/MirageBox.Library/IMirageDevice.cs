@@ -1,133 +1,69 @@
 namespace MirageBox;
 
 /// <summary>
-/// Represents a connected Mirabox/Ajazz/Somfon HID device.
+/// Represents a connected Mirabox/Ajazz/Somfon HID device (or simulator).
 /// </summary>
 public interface IMirageDevice : IDisposable
 {
-    /// <summary>
-    /// Gets the vendor ID of the device.
-    /// </summary>
     int VendorId { get; }
-
-    /// <summary>
-    /// Gets the product ID of the device.
-    /// </summary>
     int ProductId { get; }
-
-    /// <summary>
-    /// Gets the serial number of the device.
-    /// </summary>
     string SerialNumber { get; }
 
-    /// <summary>
-    /// Gets the number of buttons on the device.
-    /// </summary>
-    int ButtonCount { get; }
+    /// <summary>Number of buttons that have display screens.</summary>
+    int ImageButtonCount { get; }
 
-    /// <summary>
-    /// Gets the number of encoders/knobs on the device.
-    /// </summary>
+    /// <summary>Number of physical buttons without display screens.</summary>
+    int TactileButtonCount { get; }
+
     int EncoderCount { get; }
 
-    /// <summary>
-    /// Gets the native image width (in pixels) for this device's display panels.
-    /// </summary>
+    /// <summary>Native image width expected by <see cref="SetButtonImageAsync"/>.</summary>
     int ImageWidth { get; }
 
-    /// <summary>
-    /// Gets the native image height (in pixels) for this device's display panels.
-    /// </summary>
+    /// <summary>Native image height expected by <see cref="SetButtonImageAsync"/>.</summary>
     int ImageHeight { get; }
 
-    /// <summary>
-    /// Raised when a button is pressed or released.
-    /// </summary>
-    event EventHandler<ButtonEventArgs>? ButtonChanged;
+    /// <summary>Raised when a button with a display screen is pressed or released.</summary>
+    event EventHandler<ImageButtonEventArgs>? ImageButtonChanged;
 
-    /// <summary>
-    /// Raised when an encoder/knob is pressed.
-    /// </summary>
-    event EventHandler<EncoderEventArgs>? EncoderPressed;
+    /// <summary>Raised when a screen-less physical button is pressed or released.</summary>
+    event EventHandler<TactileButtonEventArgs>? TactileButtonChanged;
 
-    /// <summary>
-    /// Raised when an encoder/knob is released.
-    /// </summary>
-    event EventHandler<EncoderEventArgs>? EncoderReleased;
+    /// <summary>Raised when an encoder/knob is pressed or released.</summary>
+    event EventHandler<EncoderButtonEventArgs>? EncoderButtonChanged;
 
-    /// <summary>
-    /// Raised when an encoder/knob is rotated.
-    /// </summary>
+    /// <summary>Raised when an encoder/knob is rotated.</summary>
     event EventHandler<EncoderEventArgs>? EncoderRotated;
 
-    /// <summary>
-    /// Raised when the device is disconnected or otherwise becomes unavailable.
-    /// </summary>
+    /// <summary>Raised when the device is disconnected or otherwise becomes unavailable.</summary>
     event EventHandler? Disconnected;
 
-    /// <summary>
-    /// Initializes the device for communication.
-    /// </summary>
     Task InitializeAsync();
-
-    /// <summary>
-    /// Starts listening for input from the device.
-    /// </summary>
     Task StartListeningAsync();
-
-    /// <summary>
-    /// Stops listening for input from the device.
-    /// </summary>
     Task StopListeningAsync();
 
-    /// <summary>
-    /// Sets the brightness of the device display.
-    /// </summary>
-    /// <param name="percent">Brightness level from 0 to 100.</param>
     Task SetBrightnessAsync(byte percent);
-
-    /// <summary>
-    /// Sets the brightness of the encoder LED rings.
-    /// </summary>
-    /// <param name="percent">LED brightness level from 0 to 100.</param>
     Task SetLedBrightnessAsync(byte percent);
-
-    /// <summary>
-    /// Sets the color of each encoder LED individually.
-    /// </summary>
-    /// <param name="colors">Array of RGB colors, one per encoder LED.</param>
     Task SetLedColorsAsync(byte[][] colors);
 
     /// <summary>
-    /// Clears the display of a button.
+    /// Clears the display of an image button.
     /// </summary>
-    /// <param name="buttonIndex">The button index to clear.</param>
+    /// <param name="buttonIndex">Zero-based index within image buttons.</param>
     Task ClearButtonDisplayAsync(int buttonIndex);
 
-    /// <summary>
-    /// Clears all button displays on the device.
-    /// </summary>
     Task ClearAllDisplaysAsync();
 
     /// <summary>
-    /// Sets the image for a display panel button and flushes.
+    /// Sets the image for an image-button display panel and flushes.
     /// </summary>
-    /// <param name="buttonIndex">Zero-based display panel index.</param>
-    /// <param name="imageData">JPEG image bytes.</param>
+    /// <param name="buttonIndex">Zero-based index within image buttons.</param>
+    /// <param name="imageData">JPEG bytes at <see cref="ImageWidth"/>×<see cref="ImageHeight"/>.</param>
     Task SetButtonImageAsync(int buttonIndex, byte[] imageData);
 
-    /// <summary>
-    /// Sets the image for a display panel button without flushing.
-    /// </summary>
+    /// <summary>Sets the image without flushing; call <see cref="FlushAsync"/> when done.</summary>
     Task SetButtonImageNoFlushAsync(int buttonIndex, byte[] imageData);
 
-    /// <summary>
-    /// Flushes pending image changes to the display.
-    /// </summary>
     Task FlushAsync();
-
-    /// <summary>
-    /// Keeps the device alive with a periodic heartbeat.
-    /// </summary>
     Task KeepAliveAsync();
 }

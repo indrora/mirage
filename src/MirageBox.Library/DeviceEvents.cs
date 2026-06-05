@@ -1,47 +1,15 @@
 namespace MirageBox;
 
-/// <summary>
-/// Represents the different types of input events from the device.
-/// </summary>
-public enum DeviceInputType
+/// <summary>Event args for a button with a display screen.</summary>
+public class ImageButtonEventArgs : EventArgs
 {
-    /// <summary>No input data</summary>
-    None = 0,
-
-    /// <summary>Button press or release</summary>
-    ButtonStateChange,
-
-    /// <summary>Encoder/knob press or release</summary>
-    EncoderPress,
-
-    /// <summary>Encoder/knob rotation</summary>
-    EncoderTwist
-}
-
-/// <summary>
-/// Represents button event data.
-/// </summary>
-public class ButtonEventArgs : EventArgs
-{
-    /// <summary>
-    /// Gets the button index that changed.
-    /// </summary>
+    /// <summary>Zero-based index within the device's image buttons.</summary>
     public int ButtonIndex { get; }
-
-    /// <summary>
-    /// Gets a value indicating whether the button is pressed (true) or released (false).
-    /// </summary>
     public bool IsPressed { get; }
-
-    /// <summary>
-    /// Gets the array of all button states.
-    /// </summary>
+    /// <summary>State of all image buttons on the device.</summary>
     public bool[] AllButtonStates { get; }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ButtonEventArgs"/> class.
-    /// </summary>
-    public ButtonEventArgs(int buttonIndex, bool isPressed, bool[] allStates)
+    public ImageButtonEventArgs(int buttonIndex, bool isPressed, bool[] allStates)
     {
         ButtonIndex = buttonIndex;
         IsPressed = isPressed;
@@ -49,52 +17,48 @@ public class ButtonEventArgs : EventArgs
     }
 }
 
-/// <summary>
-/// Represents encoder/knob event data.
-/// </summary>
-public class EncoderEventArgs : EventArgs
+/// <summary>Event args for a physical button without a display screen.</summary>
+public class TactileButtonEventArgs : EventArgs
 {
-    /// <summary>
-    /// Gets the encoder index that changed.
-    /// </summary>
-    public int EncoderIndex { get; }
-
-    /// <summary>
-    /// Gets a value indicating whether the encoder is pressed (true) or released (false).
-    /// Used for EncoderPressed and EncoderReleased events.
-    /// </summary>
+    /// <summary>Zero-based index within the device's tactile buttons.</summary>
+    public int ButtonIndex { get; }
     public bool IsPressed { get; }
+    /// <summary>State of all tactile buttons on the device.</summary>
+    public bool[] AllButtonStates { get; }
 
-    /// <summary>
-    /// Gets the rotation direction and amount. Positive values indicate clockwise rotation,
-    /// negative values indicate counter-clockwise rotation.
-    /// </summary>
-    public int RotationDelta { get; }
+    public TactileButtonEventArgs(int buttonIndex, bool isPressed, bool[] allStates)
+    {
+        ButtonIndex = buttonIndex;
+        IsPressed = isPressed;
+        AllButtonStates = allStates;
+    }
+}
 
-    /// <summary>
-    /// Gets the array of all encoder press states.
-    /// </summary>
-    public bool[] AllEncoderPressStates { get; }
+/// <summary>Event args for an encoder press or release.</summary>
+public class EncoderButtonEventArgs : EventArgs
+{
+    public int EncoderIndex { get; }
+    public bool IsPressed { get; }
+    public bool[] AllEncoderStates { get; }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="EncoderEventArgs"/> class for press/release events.
-    /// </summary>
-    public EncoderEventArgs(int encoderIndex, bool isPressed, bool[] allStates)
+    public EncoderButtonEventArgs(int encoderIndex, bool isPressed, bool[] allStates)
     {
         EncoderIndex = encoderIndex;
         IsPressed = isPressed;
-        RotationDelta = 0;
-        AllEncoderPressStates = allStates;
+        AllEncoderStates = allStates;
     }
+}
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="EncoderEventArgs"/> class for rotation events.
-    /// </summary>
+/// <summary>Event args for encoder rotation.</summary>
+public class EncoderEventArgs : EventArgs
+{
+    public int EncoderIndex { get; }
+    /// <summary>Positive = clockwise, negative = counter-clockwise.</summary>
+    public int RotationDelta { get; }
+
     public EncoderEventArgs(int encoderIndex, int rotationDelta)
     {
         EncoderIndex = encoderIndex;
-        IsPressed = false;
         RotationDelta = rotationDelta;
-        AllEncoderPressStates = Array.Empty<bool>();
     }
 }

@@ -10,8 +10,11 @@ IMirageDevice device;
 
 if (args.Contains("--simulator"))
 {
-    Console.WriteLine("Using simulator device.");
-    device = new SimulatorDevice();
+    int simButtons = ParseIntArg(args, "--sim-buttons", 4);
+    int simTactile = ParseIntArg(args, "--sim-tactile", 3);
+    int simSize    = ParseIntArg(args, "--sim-size",    128);
+    Console.WriteLine($"Using simulator device ({simButtons} display, {simTactile} tactile, {simSize}px).");
+    device = new SimulatorDevice(simButtons, simTactile, simSize);
 }
 else
 {
@@ -30,7 +33,7 @@ else
     for (int i = 0; i < devices.Count; i++)
     {
         var d = devices[i];
-        Console.WriteLine($"[{i}] 0x{d.VendorId:X4}:0x{d.ProductId:X4}  Serial={d.SerialNumber}  Buttons={d.ButtonCount}  Encoders={d.EncoderCount}");
+        Console.WriteLine($"[{i}] 0x{d.VendorId:X4}:0x{d.ProductId:X4}  Serial={d.SerialNumber}  ImageButtons={d.ImageButtonCount}  TactileButtons={d.TactileButtonCount}  Encoders={d.EncoderCount}");
     }
     Console.WriteLine();
 
@@ -38,13 +41,16 @@ else
     Console.WriteLine("Using device [0] for graphics-speed test.\n");
 }
 
-var typeface = ResourceLoader.TryLoadTypeface("arbata.ttf");
+
+// Attempt to load embedded typeface resource
+var tfFilename = ParseStringArg(args, "--font", "prophet.ttf");
+var typeface = ResourceLoader.TryLoadTypeface(tfFilename);
 if (typeface is null)
 {
-    Console.WriteLine("[gfx] arbata.ttf not loaded; using default system typeface.");
+    Console.WriteLine($"[gfx] {tfFilename} not loaded; using default system typeface.");
 }
 
-const int PanelCount = 6;
+int PanelCount = device.ImageButtonCount;
 var values = new int[PanelCount];
 var gaugeTypeIndex = new int[PanelCount];
 var themeIndex = new int[PanelCount];
@@ -72,40 +78,36 @@ try
     await device.SetBrightnessAsync(10);
 
 
-    device.ButtonChanged += (s, e) =>
+    device.ImageButtonChanged += (s, e) =>
     {
-        if (!e.IsPressed)
-            return;
-
-        if (e.ButtonIndex is >= 0 and < 6)
+        if (!e.IsPressed) return;
+        int previous;
+        lock (stateLock)
         {
-            int previous;
-            lock (stateLock)
-            {
-                previous = selectedPanel;
-                selectedPanel = e.ButtonIndex;
-                dirty[previous] = true;
-                dirty[e.ButtonIndex] = true;
-            }
-            Console.WriteLine($"Selected panel: {e.ButtonIndex + 1}");
-            return;
+            previous = selectedPanel;
+            selectedPanel = e.ButtonIndex;
+            dirty[previous] = true;
+            if (e.ButtonIndex < PanelCount) dirty[e.ButtonIndex] = true;
         }
+        Console.WriteLine($"Selected panel: {e.ButtonIndex + 1}");
+    };
 
+    device.TactileButtonChanged += (s, e) =>
+    {
+        if (!e.IsPressed) return;
         lock (stateLock)
         {
             int panel = selectedPanel;
-            if (e.ButtonIndex == 6)
+            if (e.ButtonIndex == 0)
                 gaugeTypeIndex[panel] = (gaugeTypeIndex[panel] + 1) % 4;
-            else if (e.ButtonIndex == 7)
+            else if (e.ButtonIndex == 1)
                 themeIndex[panel] = (themeIndex[panel] + 1) % 4;
-            else if (e.ButtonIndex == 8)
+            else if (e.ButtonIndex == 2)
             {
                 rangeIndex[panel] = (rangeIndex[panel] + 1) % 3;
                 values[panel] = 0;
             }
-            else
-                return;
-
+            else return;
             dirty[panel] = true;
             Console.WriteLine($"Panel {panel + 1} aspects: type={gaugeTypeIndex[panel]} theme={themeIndex[panel]} range={rangeIndex[panel]}");
         }
@@ -113,9 +115,7 @@ try
 
     device.EncoderRotated += (s, e) =>
     {
-        if (e.EncoderIndex != 0)
-            return;
-
+        if (e.EncoderIndex != 0) return;
         lock (stateLock)
         {
             int panel = selectedPanel;
@@ -124,11 +124,10 @@ try
             dirty[panel] = true;
         }
     };
-    device.EncoderPressed += (s, e) =>
-    {
-        if (e.EncoderIndex != 0)
-            return;
 
+    device.EncoderButtonChanged += (s, e) =>
+    {
+        if (e.EncoderIndex != 0 || !e.IsPressed) return;
         lock (stateLock)
         {
             gaugeTypeIndex[selectedPanel] = (gaugeTypeIndex[selectedPanel] + 1) % 4;
@@ -158,7 +157,7 @@ try
 
     async Task RenderLoopAsync(CancellationToken token)
     {
-        const int targetFps = 120;
+        const int targetFps = 30;
         var frameDuration = TimeSpan.FromSeconds(1.0 / targetFps);
 
         while (!token.IsCancellationRequested)
@@ -171,7 +170,7 @@ try
             var sw = Stopwatch.StartNew();
 
 
-            for (int panel = 0; panel < Math.Min(PanelCount, device.ButtonCount); panel++)
+            for (int panel = 0; panel < Math.Min(PanelCount, device.ImageButtonCount); panel++)
             {
                 try
                 {
@@ -324,4 +323,20 @@ static (SKColor primary, SKColor secondary, SKColor background, SKColor text) Ge
         2 => (new SKColor(255, 186, 72), new SKColor(84, 62, 40), new SKColor(24, 16, 8), new SKColor(255, 243, 224)),
         _ => (new SKColor(151, 242, 156), new SKColor(48, 84, 52), new SKColor(10, 24, 12), new SKColor(235, 255, 236))
     };
+}
+
+static int ParseIntArg(string[] args, string name, int defaultValue)
+{
+    for (int i = 0; i < args.Length - 1; i++)
+        if (args[i] == name && int.TryParse(args[i + 1], out int v))
+            return v;
+    return defaultValue;
+}
+
+static string ParseStringArg(string[] args, string name, string defaultValue)
+{
+    for (int i = 0; i < args.Length - 1; i++)
+        if (args[i] == name)
+            return args[i + 1];
+    return defaultValue;
 }
