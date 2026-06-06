@@ -35,4 +35,36 @@ public static class ResourceLoader
 
         return null;
     }
+    public static SKBitmap? TryLoadBitmap(string fileName)
+    {
+        string[] candidates =
+        [
+            Path.Combine(Environment.CurrentDirectory, fileName),
+            Path.Combine(Environment.CurrentDirectory, "..", "..", "..", fileName),
+            Path.Combine(Environment.CurrentDirectory, "..", "..", "..", "..", fileName),
+            Path.Combine(AppContext.BaseDirectory, fileName),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", fileName)
+        ];
+
+        foreach (var candidate in candidates)
+        {
+            var fullPath = Path.GetFullPath(candidate);
+            if (!File.Exists(fullPath))
+                continue;
+
+            try
+            {
+                using var stream = File.OpenRead(fullPath);
+                var bitmap = SKBitmap.Decode(stream);
+                if (bitmap is not null)
+                    return bitmap;
+            }
+            catch
+            {
+                // Try next candidate.
+            }
+        }
+
+        return null;
+    }
 }

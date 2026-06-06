@@ -71,6 +71,35 @@ var metricsStopwatch = Stopwatch.StartNew();
 var statsCts = new CancellationTokenSource();
 var renderCts = new CancellationTokenSource();
 
+RenderFunc[] styles;
+
+styles =
+[
+    Styles.Radial(180, 180),
+    Styles.Radial(135, 270),
+    Styles.TankFill(),
+    Styles.Numeric(),
+    Styles.Bar(),
+    Styles.ImageFade(
+        ResourceLoader.TryLoadBitmap("comp04.png") ?? throw new Exception("Failed to load comp04.png"),
+        ResourceLoader.TryLoadBitmap("comp05.png") ?? throw new Exception("Failed to load comp05.png")
+    ),
+    Styles.Image(ResourceLoader.TryLoadBitmap("dopelives.png") ?? throw new Exception("Failed to load dopelives.png")),
+    Styles.Image(ResourceLoader.TryLoadBitmap("enby.png") ?? throw new Exception("Failed to load enby.png")),
+    Styles.Perimeter(),
+    Styles.FullRing(),
+    Styles.LiquidTank(),
+    Styles.BigDial(),
+    Styles.NumberBar(),
+    Styles.LedRing(),
+    Styles.ArcScale(),
+    Styles.DualRing(),
+    Styles.ValueScale(),
+    Styles.SegmentBar(),
+    Styles.Battery(),
+    Styles.Thermometer()
+];
+
 try
 {
     Console.WriteLine("Initializing [0]...");
@@ -99,7 +128,7 @@ try
         {
             int panel = selectedPanel;
             if (e.ButtonIndex == 0)
-                gaugeTypeIndex[panel] = (gaugeTypeIndex[panel] + 1) % 4;
+                gaugeTypeIndex[panel] = (gaugeTypeIndex[panel] + 1) % styles.Length;
             else if (e.ButtonIndex == 1)
                 themeIndex[panel] = (themeIndex[panel] + 1) % 4;
             else if (e.ButtonIndex == 2)
@@ -130,7 +159,7 @@ try
         if (e.EncoderIndex != 0 || !e.IsPressed) return;
         lock (stateLock)
         {
-            gaugeTypeIndex[selectedPanel] = (gaugeTypeIndex[selectedPanel] + 1) % 4;
+            gaugeTypeIndex[selectedPanel] = (gaugeTypeIndex[selectedPanel] + 1) % styles.Length;
             dirty[selectedPanel] = true;
             Console.WriteLine($"Panel {selectedPanel + 1} aspects: type={gaugeTypeIndex[selectedPanel]} theme={themeIndex[selectedPanel]} range={rangeIndex[selectedPanel]}");
         }
@@ -174,11 +203,7 @@ try
             {
                 try
                 {
-                    byte[] imageData;
-                    
-                        var gauge = BuildGaugeForPanel(panel, typeface, selectedPanel, values, gaugeTypeIndex, themeIndex, rangeIndex, rainbowHue, device.ImageWidth, device.ImageHeight);
-                        imageData = gauge.RenderJpeg(100);
-                    
+                    byte[] imageData = RenderGaugeToJpeg(panel, typeface, selectedPanel, values, gaugeTypeIndex, styles, themeIndex, rangeIndex, rainbowHue, device.ImageWidth, device.ImageHeight);
 
                     await device.SetButtonImageNoFlushAsync(panel, imageData);
                     anyUploaded = true;
@@ -262,46 +287,71 @@ finally
     device.Dispose();
 }
 
-static ITinyGauge BuildGaugeForPanel(
+static byte[] RenderGaugeToJpeg(
     int panel,
     SKTypeface? typeface,
     int selectedPanel,
     int[] values,
     int[] gaugeTypeIndex,
+    RenderFunc[] styles,
     int[] themeIndex,
     int[] rangeIndex,
     float rainbowHue,
     int imageWidth = 64,
     int imageHeight = 64)
 {
-    var gauge = gaugeTypeIndex[panel] switch
-    {
-        0 => TinyGaugeFactory.CreateRadial(),
-        1 => TinyGaugeFactory.CreateFillTank(),
-        2 => TinyGaugeFactory.CreateNumeric(),
-        _ => TinyGaugeFactory.CreateBar()
-    };
-
     var (min, max) = GetRange(rangeIndex[panel]);
     var (primary, secondary, background, text) = GetTheme(themeIndex[panel], rainbowHue);
 
-    gauge
-        .SetSize(imageWidth, imageHeight)
-        .SetRange(min, max)
-        .SetValue(values[panel])
-        .SetLabel($"Panel {panel + 1}")
-        .SetTypeface(typeface)
-        .SetPrimaryColor(primary)
-        .SetSecondaryColor(secondary)
-        .SetBackgroundColor(background)
-        .SetTextColor(text);
-
+    // Override secondary color if this panel is selected
     if (panel == selectedPanel)
     {
-        gauge.SetSecondaryColor(primary.WithAlpha(150));
+        secondary = primary.WithAlpha(150);
     }
 
-    return gauge;
+    var theme = new Theme
+    {
+        Typeface = typeface,
+        PrimaryColor = primary,
+        SecondaryColor = secondary,
+        BackgroundColor = background,
+        TextColor = text,
+        Accents = Array.Empty<SKColor>()
+    };
+
+    var rangedValue = new RangedValue(min, max, values[panel]);
+    var label = $"Panel {panel + 1}";
+
+    // Use default typeface if none provided
+    var effectiveTypeface = typeface ?? SKTypeface.Default;
+
+    // Select the appropriate renderer
+    RenderFunc renderer = styles[gaugeTypeIndex[panel]] ?? Styles.Numeric();
+
+    // Create gauge config with renderer
+    var config = new GaugeConfig(
+        Value: rangedValue,
+        Label: label,
+        Typeface: effectiveTypeface,
+        Theme: theme,
+        Renderer: renderer
+    );
+
+    // Create bitmap and canvas for rendering
+    var bitmap = new SKBitmap(imageWidth, imageHeight, SKColorType.Rgba8888, SKAlphaType.Premul);
+    using (var canvas = new SKCanvas(bitmap))
+    {
+        var bounds = new SKRect(0, 0, imageWidth, imageHeight);
+        // Render using the config's renderer function
+        config.Renderer(canvas, config.Theme, config.Typeface, bounds, config.Label, config.Value);
+    }
+
+    // Encode to JPEG
+    using var image = SKImage.FromBitmap(bitmap);
+    using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 100);
+    bitmap.Dispose();
+
+    return encoded.ToArray();
 }
 
 static (int min, int max) GetRange(int idx)
