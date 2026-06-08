@@ -1,49 +1,87 @@
-# Mirabox/Ajazz/Somfon .NET Library
+# MirageBox .NET Control Surface Library
 
-A .NET 8.0 class library for interacting with Mirabox, Ajazz, and Somfon HID control surface devices using .NET events.
+A .NET 9.0 library for interacting with professional HID control surface devices including StreamDeck-style devices, Mirabox, Ajazz, and other hardware. Supports device discovery, button/encoder events, image rendering, and full device control via async APIs.
 
 ## Features
 
-- 🎛️ **Button Events** - Detect button presses and releases
-- 🔄 **Encoder Events** - Monitor encoder/knob rotations and presses
-- 📊 **Device Discovery** - Automatically find connected devices
-- ⚡ **Async API** - Full async/await support
-- 🎨 **Device Control** - Set brightness, LED colors, and clear displays
+- 🎛️ **Multi-Device Support** - StreamDeck, StreamControllerSE, N4/N4Pro/N3/N1, XL, M18, K1Pro, Mirabox, and more
+- 🎨 **Image Rendering** - Per-button image rendering with SkiaSharp
+- 🎯 **Hardware Events** - Button presses, encoder rotations, tactile inputs
+- 📊 **Device Discovery** - Automatic enumeration of connected devices  
+- ⚡ **Fully Async** - Complete async/await support
+- 🔧 **Hardware Control** - Brightness, LED colors, display management, device modes
+- 🧪 **Simulator Support** - Test without hardware using the built-in simulator
 
-## Quick Start
+## Requirements
 
-### Installation
+- .NET 9.0 SDK or later
+- SkiaSharp dependencies (platform-specific)
 
-Add the NuGet package to your project:
+## Building
+
 ```bash
-dotnet add package MirageBox
+dotnet build
 ```
 
-### Basic Usage
+## Development
+
+The project consists of three main components:
+
+- **MirageBox.Library** - Core control surface API
+- **MirageBox.TinyGauges** - SkiaSharp-based graphics library for rendering gauge components
+- **MirageBox.Oasis** - Graphics rendering demo and performance benchmark (run with `dotnet run --project src/MirageBox.Oasis`)
+
+Run the graphics demo:
+```bash
+dotnet run --project src/MirageBox.Oasis
+```
+
+Or use the simulator for testing without hardware:
+```bash
+dotnet run --project src/MirageBox.Oasis -- --simulator
+```
+
+## Quick Start
 
 ```csharp
 using MirageBox;
 
 // Discover devices
 var devices = DeviceFactory.DiscoverDevices();
-var device = devices.First();
+if (devices.Count == 0)
+{
+    Console.WriteLine("No devices found!");
+    return;
+}
 
-// Initialize
+var device = devices.First();
+Console.WriteLine($"Device: {device.Name}, Buttons: {device.ButtonCount}, Encoders: {device.EncoderCount}");
+
+// Initialize the device
 await device.InitializeAsync();
 
-// Set up event handlers
+// Subscribe to button events
 device.ButtonChanged += (s, e) => 
 {
     Console.WriteLine($"Button {e.ButtonIndex}: {(e.IsPressed ? "Pressed" : "Released")}");
 };
 
+// Subscribe to encoder events
 device.EncoderRotated += (s, e) => 
 {
-    Console.WriteLine($"Encoder {e.EncoderIndex}: Rotated {e.RotationDelta} steps");
+    Console.WriteLine($"Encoder {e.EncoderIndex}: {e.RotationDelta} steps");
 };
 
-// Start listening
+device.EncoderPressed += (s, e) =>
+{
+    Console.WriteLine($"Encoder {e.EncoderIndex}: Pressed");
+};
+
+// Start listening for events
 await device.StartListeningAsync();
+
+// Do your thing...
+await Task.Delay(30000); // Run for 30 seconds
 
 // Clean up
 await device.StopListeningAsync();
@@ -96,13 +134,23 @@ device.Dispose();
 MirageBox/
 ├── src/
 │   ├── MirageBox.Library/
-│   │   ├── DeviceEvents.cs       - Event arg classes
-│   │   ├── DeviceFactory.cs      - Device discovery
-│   │   ├── HidReportParser.cs    - HID protocol parsing
-│   │   ├── IMirageDevice.cs      - Device interface
-│   │   └── MirageDevice.cs       - Device implementation
-│   └── MirageBox.Sample/
-│       └── Program.cs             - Console demo
+│   │   ├── DeviceCommands.cs         - Protocol command definitions
+│   │   ├── DeviceEvents.cs           - Event argument classes
+│   │   ├── DeviceFactory.cs          - Device discovery & profiles
+│   │   ├── HidReportParser.cs        - HID protocol parsing
+│   │   ├── IMirageDevice.cs          - Device interface
+│   │   ├── MirageDevice.cs           - Device implementation
+│   │   ├── SimulatorDevice.cs        - Software simulator
+│   │   └── Protocol.md               - Protocol documentation
+│   ├── MirageBox.Oasis/
+│   │   ├── Program.cs                - Graphics demo/benchmark
+│   │   ├── GaugePanelComponent.cs    - UI components
+│   │   └── ResourceLoader.cs         - Asset loading
+│   └── MirageBox.TinyGauges/
+│       ├── AnimationController.cs    - Animation framework
+│       ├── Graphics.cs               - Rendering utilities
+│       ├── Theme.cs                  - Visual theming
+│       └── ITinyGuage.cs             - Component interface
 ├── MirageBox.sln
 ├── global.json
 └── README.md
@@ -110,12 +158,31 @@ MirageBox/
 
 ## Dependencies
 
-- [HidLibrary](https://github.com/mikeobrien/HidLibrary) - HID device communication
+- [HIDSharp](https://github.com/Jcw87/HIDSharp) - HID device communication
+- [SkiaSharp](https://github.com/mono/SkiaSharp) - 2D graphics rendering
+- [Silk.NET](https://www.silk.net/) - SDL bindings (for advanced graphics)
 
-## Hardware Support
+## Supported Devices
 
-- **Mirabox / Ajazz Mirajazz** (VID: 0x294B, PID: 0x0171)
-- Additional devices can be added to `DeviceFactory.KnownDevices`
+The library supports a wide range of professional HID control surface devices:
+
+| Device | Buttons | Encoders | LEDs | Screen | Notes |
+|--------|---------|----------|------|--------|-------|
+| **StreamControllerSE** | 6 display + 3 tactile | 3 | - | 64×64 | Somfon rebadge |
+| **N4Pro** | 10 display | 4 | 4 | 112×112 | LED rings, 2×5 grid |
+| **N4** | 10 display | 4 | - | 112×112 | 2×5 grid |
+| **XL** | 32 display | 2 | 6 | 80×80 | 4×8 grid |
+| **M18** | 18 display | 2 | 3 | 128×64 | 3×6 grid |
+| **K1Pro** | 20 display | 1 | 2 | 128×128 | 4×5 grid |
+| **N1** | 4 display | 1 | - | 128×64 | Compact |
+| **N3** | 9 display | 1 | - | 128×64 | 3×3 grid |
+| **Mirabox** | 1 display | 3 | - | 128×64 | Original Mirabox |
+
+Each device supports:
+- Per-button image rendering with per-button screen rotation
+- Configurable brightness and LED colors
+- Keep-alive heartbeats
+- Multiple protocol variants (legacy bitfield and ack-prefix)
 
 ## Protocol Reference
 
