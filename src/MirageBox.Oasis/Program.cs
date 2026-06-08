@@ -329,13 +329,14 @@ static byte[] RenderGaugeToJpeg(
     RenderFunc renderer = styles[gaugeTypeIndex[panel]] ?? Styles.Numeric();
 
     // Create gauge config with renderer
-    var config = new GaugeConfig(
-        Value: rangedValue,
-        Label: label,
-        Typeface: effectiveTypeface,
-        Theme: theme,
-        Renderer: renderer
-    );
+    var config = new GaugeConfig
+    {
+        Value=rangedValue,
+        Label=label,
+        Typeface=effectiveTypeface,
+        Theme=theme,
+        Renderer=renderer
+    };
 
     // Create bitmap and canvas for rendering
     var bitmap = new SKBitmap(imageWidth, imageHeight, SKColorType.Rgba8888, SKAlphaType.Premul);

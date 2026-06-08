@@ -1,3 +1,5 @@
+
+using System.Numerics;
 using SkiaSharp;
 
 namespace MirageBox.TinyGauges;
@@ -15,18 +17,21 @@ public record struct RangedValue
 
         Min = min;
         Max = max;
-        Value = Math.Clamp(value, Min, Max);
+        Value = value < Min ? Min : value > Max ? Max : value;
     }
-    public float ValueClamped => Math.Clamp(Value, Min, Max);
+    public float ValueClamped => Value < Min ? Min : Value > Max ? Max : Value;
     public float Ratio => (ValueClamped - Min) / (Max - Min);
+
+    public string Formatted(string format) => ValueClamped.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
 }
 
 public delegate void RenderFunc(SKCanvas canvas, Theme theme, SKTypeface typeface, SKRect bounds, string? label, RangedValue value);
 
-public record struct GaugeConfig(
-    RangedValue Value,
-    string? Label,
-    SKTypeface Typeface,
-    Theme Theme,
-    RenderFunc Renderer
-);
+public record struct GaugeConfig {
+
+    public RangedValue Value;
+    public string? Label;
+    public SKTypeface Typeface;
+    public Theme Theme;
+    public RenderFunc Renderer;
+}

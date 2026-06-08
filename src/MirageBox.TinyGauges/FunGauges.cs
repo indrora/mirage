@@ -1,3 +1,4 @@
+using System.Numerics;
 using SkiaSharp;
 
 namespace MirageBox.TinyGauges;
@@ -25,8 +26,8 @@ public static partial class Styles
         return (cx + MathF.Cos(rad) * r, cy + MathF.Sin(rad) * r);
     }
 
-    private static string FunNum(RangedValue v) =>
-        v.ValueClamped.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    private static string FunNum(float v) =>
+        v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
     private static string FunShort(double v) =>
         ((float)v).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
@@ -96,7 +97,7 @@ public static partial class Styles
         In64(canvas, bounds, theme, c =>
         {
             FunArc(c, new SKRect(6, 6, 58, 58), -90, 360, value.Ratio, 7, FunTrack(theme), FunInfo(theme));
-            FunTextCentered(c, FunNum(value), 32, label is null ? 32 : 28, 22, theme.TextColor, tf);
+            FunTextCentered(c, FunNum(value.ValueClamped), 32, label is null ? 32 : 28, 22, theme.TextColor, tf);
             if (!string.IsNullOrEmpty(label))
                 FunText(c, label, 32, 50, 11, theme.SecondaryColor, tf);
         });
@@ -117,13 +118,13 @@ public static partial class Styles
             using var measure = new SKPathMeasure(path, false);
             float len = measure.Length;
             using var seg = new SKPath();
-            if (measure.GetSegment(0, len * value.Ratio, seg, true))
+            if (measure.GetSegment(-90, len * value.Ratio, seg, true))
             {
                 using var vp = FunStroke(FunOk(theme), 5);
                 c.DrawPath(seg, vp);
             }
 
-            FunTextCentered(c, FunNum(value), 32, label is null ? 32 : 28, 22, theme.TextColor, tf);
+            FunTextCentered(c, FunNum(value.ValueClamped), 32, label is null ? 32 : 28, 22, theme.TextColor, tf);
             if (!string.IsNullOrEmpty(label))
                 FunText(c, label, 32, 50, 11, theme.SecondaryColor, tf);
         });
@@ -144,7 +145,7 @@ public static partial class Styles
                 using var surface = FunFill(FunInfo(theme));
                 c.DrawRect(0, 64 - h, 64, 2, surface);
             }
-            FunTextCentered(c, FunNum(value), 32, 28, 20, theme.TextColor, tf);
+            FunTextCentered(c, FunNum(value.ValueClamped), 32, 28, 20, theme.TextColor, tf);
             if (!string.IsNullOrEmpty(label))
                 FunText(c, label, 32, 46, 11, theme.TextColor, tf);
         });
@@ -171,7 +172,7 @@ public static partial class Styles
             using (var hub = FunFill(theme.TextColor))
                 c.DrawCircle(32, 32, 3, hub);
 
-            string text = string.IsNullOrEmpty(label) ? FunNum(value) : label;
+            string text = string.IsNullOrEmpty(label) ? FunNum(value.ValueClamped) : label;
             FunText(c, text, 32, 47, 11, string.IsNullOrEmpty(label) ? theme.TextColor : theme.SecondaryColor, tf);
         });
     };
@@ -184,7 +185,7 @@ public static partial class Styles
         {
             if (!string.IsNullOrEmpty(label))
                 FunText(c, label, 32, 13, 11, theme.SecondaryColor, tf);
-            FunTextCentered(c, FunNum(value), 32, 34, 24, theme.TextColor, tf);
+            FunTextCentered(c, FunNum(value.ValueClamped), 32, 34, 24, theme.TextColor, tf);
             FunRect(c, 4, 52, 56, 7, 3, FunTrack(theme));
             FunRect(c, 4, 52, value.Ratio * 56, 7, 3, FunInfo(theme));
         });
@@ -207,7 +208,7 @@ public static partial class Styles
                     : FunTrack(theme);
                 FunLine(c, ox, oy, ix, iy, col, 3);
             }
-            FunTextCentered(c, FunNum(value), 32, label is null ? 32 : 30, 15, theme.TextColor, tf);
+            FunTextCentered(c, FunNum(value.ValueClamped), 32, label is null ? 32 : 30, 15, theme.TextColor, tf);
             if (!string.IsNullOrEmpty(label))
                 FunText(c, label, 32, 47, 11, theme.SecondaryColor, tf);
         });
@@ -221,7 +222,7 @@ public static partial class Styles
         {
             if (!string.IsNullOrEmpty(label))
                 FunText(c, label, 32, 13, 11, theme.SecondaryColor, tf);
-            FunText(c, FunNum(value), 32, 31, 21, theme.TextColor, tf);
+            FunText(c, FunNum(value.ValueClamped), 32, 31, 21, theme.TextColor, tf);
 
             FunRect(c, 4, 39, 56, 6, 3, FunTrack(theme));
             FunRect(c, 4, 39, value.Ratio * 56, 6, 3, FunInfo(theme));
@@ -258,7 +259,7 @@ public static partial class Styles
 
             FunText(c, FunShort(value.Min), 4, 52, 11, theme.SecondaryColor, tf, SKTextAlign.Left);
             FunText(c, FunShort(value.Max), 60, 52, 11, theme.SecondaryColor, tf, SKTextAlign.Right);
-            FunText(c, FunNum(value), 32, 58, 12, theme.TextColor, tf);
+            FunText(c, FunNum(value.ValueClamped), 32, 58, 12, theme.TextColor, tf);
         });
     };
 
@@ -311,7 +312,7 @@ public static partial class Styles
             FunStrokeRect(c, 6, 17, 46, 30, 4, theme.SecondaryColor, 2);
             FunRect(c, 52, 25, 4, 14, 2, theme.SecondaryColor);
             FunRect(c, 9, 20, value.Ratio * 40, 24, 2, FunLevel(theme, value.Ratio));
-            FunTextCentered(c, FunNum(value), 29, 32, 16, theme.TextColor, tf);
+            FunTextCentered(c, FunNum(value.ValueClamped), 29, 32, 16, theme.TextColor, tf);
         });
     };
 
