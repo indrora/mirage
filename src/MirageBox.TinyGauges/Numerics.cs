@@ -4,6 +4,7 @@ namespace MirageBox.TinyGauges;
 
 public static partial class Styles
 {
+    [GaugeRenderer("Radial")]
     public static RenderFunc Radial(float startAngle, float sweepAngle) =>
         (canvas, theme, typeface, bounds, label, value) =>
         {
@@ -85,6 +86,7 @@ public static partial class Styles
     }
 
 
+    [GaugeRenderer("Bar")]
     public static RenderFunc Bar() => (canvas, theme, typeface, bounds, label, value) =>
     {
         canvas.Clear(theme.BackgroundColor);
@@ -112,6 +114,7 @@ public static partial class Styles
         canvas.DrawRoundRect(fill, 4f, 4f, fillPaint);
     };
 
+    [GaugeRenderer("TankFill")]
     public static RenderFunc TankFill() => (canvas, theme, typeface, bounds, label, value) =>
     {
         canvas.Clear(theme.BackgroundColor);
@@ -142,6 +145,7 @@ public static partial class Styles
         }
     };
 
+    [GaugeRenderer("Numeric")]
     public static RenderFunc Numeric() => (canvas, theme, typeface, bounds, label, value) =>
     {
         canvas.Clear(theme.BackgroundColor);

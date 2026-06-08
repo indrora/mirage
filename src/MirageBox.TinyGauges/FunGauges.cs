@@ -91,6 +91,7 @@ public static partial class Styles
     // ── RenderFunc implementations ────────────────────────────────────────────────
 
     /// <summary>Edge-to-edge circular progress ring with a large centered readout.</summary>
+    [GaugeRenderer("FullRing")]
     public static RenderFunc FullRing() => (canvas, theme, typeface, bounds, label, value) =>
     {
         var tf = typeface ?? theme.Typeface;
@@ -104,6 +105,7 @@ public static partial class Styles
     };
 
     /// <summary>Progress traced around the rounded keycap perimeter; center stays free for a number.</summary>
+    [GaugeRenderer("Perimeter")]
     public static RenderFunc Perimeter() => (canvas, theme, typeface, bounds, label, value) =>
     {
         var tf = typeface ?? theme.Typeface;
@@ -131,6 +133,7 @@ public static partial class Styles
     };
 
     /// <summary>Full-tile liquid fill rising from the bottom, with a bright surface line.</summary>
+    [GaugeRenderer("LiquidTank")]
     public static RenderFunc LiquidTank() => (canvas, theme, typeface, bounds, label, value) =>
     {
         var tf = typeface ?? theme.Typeface;
@@ -152,6 +155,7 @@ public static partial class Styles
     };
 
     /// <summary>270-degree needle dial with a graduated tick ring.</summary>
+    [GaugeRenderer("BigDial")]
     public static RenderFunc BigDial() => (canvas, theme, typeface, bounds, label, value) =>
     {
         var tf = typeface ?? theme.Typeface;
@@ -178,6 +182,7 @@ public static partial class Styles
     };
 
     /// <summary>Big numeral over a full-width progress bar pinned to the bottom edge.</summary>
+    [GaugeRenderer("NumberBar")]
     public static RenderFunc NumberBar() => (canvas, theme, typeface, bounds, label, value) =>
     {
         var tf = typeface ?? theme.Typeface;
@@ -192,6 +197,7 @@ public static partial class Styles
     };
 
     /// <summary>Segmented LED ring (12 radial segments) lit proportionally, color-zoned.</summary>
+    [GaugeRenderer("LedRing")]
     public static RenderFunc LedRing() => (canvas, theme, typeface, bounds, label, value) =>
     {
         var tf = typeface ?? theme.Typeface;
@@ -215,6 +221,7 @@ public static partial class Styles
     };
 
     /// <summary>Numeral plus a labeled horizontal scale (min / max from the range).</summary>
+    [GaugeRenderer("ValueScale")]
     public static RenderFunc ValueScale() => (canvas, theme, typeface, bounds, label, value) =>
     {
         var tf = typeface ?? theme.Typeface;
@@ -235,6 +242,7 @@ public static partial class Styles
     };
 
     /// <summary>Labeled 180-degree analog meter: needle, graduations, min/max, value.</summary>
+    [GaugeRenderer("ArcScale")]
     public static RenderFunc ArcScale() => (canvas, theme, typeface, bounds, label, value) =>
     {
         var tf = typeface ?? theme.Typeface;
@@ -264,6 +272,7 @@ public static partial class Styles
     };
 
     /// <summary>Vertical segmented bargraph (10 segments) with a side scale.</summary>
+    [GaugeRenderer("SegmentBar")]
     public static RenderFunc SegmentBar() => (canvas, theme, typeface, bounds, label, value) =>
     {
         var tf = typeface ?? theme.Typeface;
@@ -292,6 +301,7 @@ public static partial class Styles
     /// "vernier" of the same value (×10 fractional part), giving fine resolution from
     /// a single metric.
     /// </summary>
+    [GaugeRenderer("DualRing")]
     public static RenderFunc DualRing() => (canvas, theme, typeface, bounds, label, value) =>
     {
         In64(canvas, bounds, theme, c =>
@@ -304,6 +314,7 @@ public static partial class Styles
     };
 
     /// <summary>Horizontal battery with a level-colored fill and percentage.</summary>
+    [GaugeRenderer("Battery")]
     public static RenderFunc Battery() => (canvas, theme, typeface, bounds, label, value) =>
     {
         var tf = typeface ?? theme.Typeface;
@@ -317,6 +328,7 @@ public static partial class Styles
     };
 
     /// <summary>Vertical thermometer column with a numbered side scale.</summary>
+    [GaugeRenderer("Thermometer")]
     public static RenderFunc Thermometer() => (canvas, theme, typeface, bounds, label, value) =>
     {
         var tf = typeface ?? theme.Typeface;
@@ -336,6 +348,18 @@ public static partial class Styles
                     FunText(c, FunShort(val), 34, y + 3, 11, theme.SecondaryColor, tf, SKTextAlign.Left);
                 }
             }
+        });
+    };
+
+    [GaugeRenderer("Text", GaugeValueType.Text)]
+    public static RenderFunc Text() => (canvas, theme, typeface, bounds, label, value) =>
+    {
+        var tf = typeface ?? theme.Typeface;
+        In64(canvas, bounds, theme, c =>
+        {
+            var text = label ?? "";
+            float fontSize = text.Length <= 5 ? 20 : text.Length <= 8 ? 16 : 12;
+            FunTextCentered(c, text, 32, 36, fontSize, theme.TextColor, tf);
         });
     };
 }

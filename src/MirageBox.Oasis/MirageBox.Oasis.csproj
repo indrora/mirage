@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\MirageBox.Library\MirageBox.Library.csproj" />
     <ProjectReference Include="..\MirageBox.TinyGauges\MirageBox.TinyGauges.csproj" />
+    <ProjectReference Include="..\MirageBox.Oasis.Core\MirageBox.Oasis.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,108 @@
+{
+  "devices": {
+    "main": { "simulator": true, "buttons": 6, "tactile": 3, "imageSize": 128 }
+  },
+
+  "dataSources": {
+    "clock": { "plugin": "__builtin:clock" },
+    "counter1": {
+      "plugin": "__builtin:counter",
+      "config": { "initial": 0, "step": 1, "min": 0, "max": 100 }
+    },
+    "timer1": {
+      "plugin": "__builtin:timer",
+      "config": { "format": "mm\\:ss" }
+    }
+  },
+
+  "gauges": {
+    "clock": {
+      "source": "clock",
+      "sensor": "time",
+      "renderer": { "type": "Text" },
+      "label": "Time"
+    },
+    "seconds": {
+      "source": "clock",
+      "sensor": "second",
+      "renderer": { "type": "FullRing" },
+      "label": "Sec",
+      "min": 0,
+      "max": 59
+    },
+    "counter": {
+      "source": "counter1",
+      "sensor": "value",
+      "renderer": { "type": "NumberBar" },
+      "label": "Count",
+      "min": 0,
+      "max": 100
+    },
+    "timer": {
+      "source": "timer1",
+      "sensor": "elapsed",
+      "renderer": { "type": "Text" },
+      "label": "Timer"
+    },
+    "timerProgress": {
+      "source": "timer1",
+      "sensor": "elapsedSeconds",
+      "renderer": { "type": "FullRing" },
+      "label": "Timer",
+      "min": 0,
+      "max": 300
+    }
+  },
+
+  "scenes": {
+    "main": {
+      "activeScene": "dashboard",
+      "pinned": {
+        "0": {
+          "gauge": "clock",
+          "action": { "type": "switchScene", "scene": "next" }
+        }
+      },
+      "list": {
+        "dashboard": {
+          "buttons": {
+            "1": { "gauge": "seconds" },
+            "2": { "gauge": "counter" },
+            "3": { "gauge": "timer" },
+            "4": { "gauge": "timerProgress" }
+          }
+        },
+        "counters": {
+          "buttons": {
+            "1": { "gauge": "counter" },
+            "2": { "gauge": "counter" },
+            "3": { "gauge": "counter" },
+            "4": { "gauge": "counter" }
+          }
+        }
+      }
+    }
+  },
+
+  "defaults": {
+    "theme": "default",
+    "font": "prophet.ttf"
+  },
+
+  "themes": {
+    "default": {
+      "primary": "#4CAF50",
+      "secondary": "#333333",
+      "background": "#1A1A1A",
+      "text": "#FFFFFF"
+    },
+    "cyber": {
+      "primary": "#78DCFF",
+      "secondary": "#2A3E4A",
+      "background": "#081218",
+      "text": "#E0F6FF"
+    }
+  },
+
+  "contentDirs": ["~/.mirage/content", "./content"]
+}
