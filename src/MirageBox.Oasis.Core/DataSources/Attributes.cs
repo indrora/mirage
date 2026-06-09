@@ -30,3 +30,23 @@ public class SensorAttribute : Attribute
         RequiresElevation = requiresElevation;
     }
 }
+
+[AttributeUsage(AttributeTargets.Method)]
+public class SourceActionAttribute : Attribute
+{
+    public string Name { get; }
+    public string Description { get; }
+    public string? ParamName { get; }
+    public string? ParamDefault { get; }
+
+    public bool IsDefault { get; set; }
+
+    public SourceActionAttribute(string name, string description,
+        string? paramName = null, string? paramDefault = null)
+    {
+        Name = name;
+        Description = description;
+        ParamName = paramName;
+        ParamDefault = paramDefault;
+    }
+}

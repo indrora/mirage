@@ -68,28 +68,40 @@ public class DeviceOrchestrator : IDisposable
         if (!e.IsPressed) return;
         var resolved = _sceneManager.GetButton(e.ButtonIndex);
         if (resolved == null) return;
-
-        if (resolved.Action != null)
-            _actionExecutor.Execute(resolved.Action, _deviceName);
-
-        if (resolved.GaugeName != null && _config.Gauges.TryGetValue(resolved.GaugeName, out var gauge))
-        {
-            if (_dataSources.TryGetValue(gauge.Source, out var source))
-                source.OnButtonPress(gauge.Sensor, ButtonPressType.ShortPress);
-        }
-
+        ExecuteOrDefault(resolved);
         MarkAllDirty();
     }
 
     private void OnTactileButtonChanged(object? sender, TactileButtonEventArgs e)
     {
         if (!e.IsPressed) return;
-        // TODO: look up tactile button bindings from scene config
+        var resolved = _sceneManager.GetTactileButton(e.ButtonIndex);
+        if (resolved != null)
+            ExecuteOrDefault(resolved);
     }
 
     private void OnEncoderRotated(object? sender, EncoderEventArgs e)
     {
-        // TODO: look up encoder bindings from scene config and route to data source
+        var resolved = _sceneManager.GetEncoder(e.EncoderIndex);
+        if (resolved != null)
+            ExecuteOrDefault(resolved);
+    }
+
+    private void ExecuteOrDefault(ResolvedButton resolved)
+    {
+        if (resolved.Action != null)
+        {
+            _actionExecutor.Execute(resolved.Action, _deviceName);
+            return;
+        }
+
+        if (resolved.GaugeName == null) return;
+        if (!_config.Gauges.TryGetValue(resolved.GaugeName, out var gauge)) return;
+        if (!_dataSources.TryGetValue(gauge.Source, out var source)) return;
+
+        var defaultAction = SourceActionHelper.GetDefaultAction(source.GetType());
+        if (defaultAction != null)
+            SourceActionHelper.ExecuteAction(source, defaultAction, null);
     }
 
     private void MarkAllDirty()

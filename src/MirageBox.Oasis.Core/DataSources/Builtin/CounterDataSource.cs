@@ -52,6 +52,27 @@ public class CounterDataSource : IDataSource
         }
     }
 
+    [SourceAction("increment", "Add to counter", paramName: "amount", paramDefault: "1", IsDefault = true)]
+    public void Increment(string? amount)
+    {
+        var step = _step;
+        if (amount != null && float.TryParse(amount, out var parsed))
+            step = parsed;
+        _value = Math.Min(_value + step, _max);
+    }
+
+    [SourceAction("decrement", "Subtract from counter", paramName: "amount", paramDefault: "1")]
+    public void Decrement(string? amount)
+    {
+        var step = _step;
+        if (amount != null && float.TryParse(amount, out var parsed))
+            step = parsed;
+        _value = Math.Max(_value - step, _min);
+    }
+
+    [SourceAction("reset", "Reset to initial value")]
+    public void ResetValue() => _value = 0;
+
     public RenderFunc? GetCustomRenderer(string sensorPath) => null;
     public void Dispose() { }
 }

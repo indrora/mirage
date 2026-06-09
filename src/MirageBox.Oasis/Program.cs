@@ -1,393 +1,402 @@
 using MirageBox;
 using MirageBox.Oasis;
+using MirageBox.Oasis.Core.Config;
+using MirageBox.Oasis.Core.Engine;
 using MirageBox.TinyGauges;
 using SkiaSharp;
 using System.Diagnostics;
+using System.Text.Json;
+using Config = MirageBox.Oasis.Core.Config;
 
-Console.WriteLine("=== Mirabox/Ajazz/Somfon .NET Control Surface Demo ===\n");
-
-IMirageDevice device;
-
-if (args.Contains("--simulator"))
+if (args.Contains("--help") || args.Contains("-h"))
 {
-    int simButtons = ParseIntArg(args, "--sim-buttons", 4);
-    int simTactile = ParseIntArg(args, "--sim-tactile", 3);
-    int simSize    = ParseIntArg(args, "--sim-size",    128);
-    Console.WriteLine($"Using simulator device ({simButtons} display, {simTactile} tactile, {simSize}px).");
-    device = new SimulatorDevice(simButtons, simTactile, simSize);
+    Console.WriteLine("""
+        Oasis — MirageBox Control Surface Engine
+
+        Usage:
+          oasis [options]
+
+        Options:
+          --config <path>       Path to config.json (default: ~/.mirage/config.json)
+          --simulator           Use simulator device (generates default config if none exists)
+          --sim-buttons <n>     Simulator display button count (default: 6)
+          --sim-tactile <n>     Simulator tactile button count (default: 3)
+          --sim-size <px>       Simulator image size in pixels (default: 128)
+          --demo                Run legacy tech demo mode
+          --font <file>         Font file for demo mode (default: prophet.ttf)
+          --help, -h            Show this help
+        """);
+    return;
 }
-else
-{
-    Console.WriteLine("Discovering devices...");
-    var devices = DeviceFactory.DiscoverDevices().ToList();
 
-    if (devices.Count == 0)
+if (args.Contains("--demo"))
+{
+    await RunDemo(args);
+    return;
+}
+
+await RunEngine(args);
+
+static async Task RunEngine(string[] args)
+{
+    var configPath = ParseStringArg(args, "--config", null)
+                     ?? ConfigLoader.DefaultConfigPath;
+
+    OasisConfig config;
+
+    if (File.Exists(configPath))
     {
-        Console.WriteLine("No devices found. Please connect a Mirabox/Ajazz/Somfon device.");
-        Console.WriteLine("Tip: run with --simulator to use the software simulator.");
+        Console.WriteLine($"Loading config from {configPath}");
+        config = ConfigLoader.Load(configPath);
+    }
+    else if (args.Contains("--simulator"))
+    {
+        Console.WriteLine("No config found. Generating default config with simulator device...");
+        config = GenerateDefaultConfig(args);
+        var dir = Path.GetDirectoryName(configPath);
+        if (dir != null && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+        ConfigLoader.Save(config, configPath);
+        Console.WriteLine($"Saved default config to {configPath}");
+    }
+    else
+    {
+        Console.WriteLine("No config file found and no --simulator flag.");
+        Console.WriteLine($"Expected config at: {configPath}");
+        Console.WriteLine("Run with --simulator to generate a default config, or --demo for the old tech demo.");
+
+        var discovered = DeviceFactory.DiscoverDevices().ToList();
+        if (discovered.Count > 0)
+        {
+            Console.WriteLine($"\nFound {discovered.Count} device(s):");
+            foreach (var d in discovered)
+                Console.WriteLine($"  Serial={d.SerialNumber}  Buttons={d.ImageButtonCount}  Encoders={d.EncoderCount}");
+            Console.WriteLine("\nCreate a config.json referencing one of these serials, or use --simulator.");
+        }
         return;
     }
 
-    Console.WriteLine($"Found {devices.Count} device(s).\n");
+    Console.WriteLine($"Devices: {config.Devices.Count}  Sources: {config.DataSources.Count}  Gauges: {config.Gauges.Count}  Scenes: {config.Scenes.Count}");
 
-    for (int i = 0; i < devices.Count; i++)
+    using var engine = new OasisEngine(config);
+    var cts = new CancellationTokenSource();
+
+    Console.CancelKeyPress += (_, e) =>
     {
-        var d = devices[i];
-        Console.WriteLine($"[{i}] 0x{d.VendorId:X4}:0x{d.ProductId:X4}  Serial={d.SerialNumber}  ImageButtons={d.ImageButtonCount}  TactileButtons={d.TactileButtonCount}  Encoders={d.EncoderCount}");
+        e.Cancel = true;
+        cts.Cancel();
+    };
+
+    try
+    {
+        await engine.StartAsync(cts.Token);
+        Console.WriteLine("\nOasis running. Press Ctrl+C to stop.");
+        await Task.Delay(Timeout.Infinite, cts.Token);
     }
-    Console.WriteLine();
-
-    device = devices[0];
-    Console.WriteLine("Using device [0] for graphics-speed test.\n");
+    catch (OperationCanceledException) { }
+    finally
+    {
+        Console.WriteLine("\nShutting down...");
+        await engine.StopAsync();
+    }
 }
 
-
-// Attempt to load embedded typeface resource
-var tfFilename = ParseStringArg(args, "--font", "prophet.ttf");
-var typeface = ResourceLoader.TryLoadTypeface(tfFilename);
-if (typeface is null)
+static OasisConfig GenerateDefaultConfig(string[] args)
 {
-    Console.WriteLine($"[gfx] {tfFilename} not loaded; using default system typeface.");
+    int simButtons = ParseIntArg(args, "--sim-buttons", 6);
+    int simTactile = ParseIntArg(args, "--sim-tactile", 3);
+    int simSize = ParseIntArg(args, "--sim-size", 128);
+
+    return new OasisConfig
+    {
+        Devices = new()
+        {
+            ["main"] = new DeviceConfig
+            {
+                Simulator = true,
+                Buttons = simButtons,
+                Tactile = simTactile,
+                ImageSize = simSize
+            }
+        },
+        DataSources = new()
+        {
+            ["clock"] = new DataSourceConfig { Plugin = "__builtin:clock" },
+            ["counter1"] = new DataSourceConfig
+            {
+                Plugin = "__builtin:counter",
+                Config = JsonDocument.Parse("""{"initial":0,"step":1,"min":0,"max":100}""")
+                    .RootElement.EnumerateObject()
+                    .ToDictionary(p => p.Name, p => p.Value.Clone())
+            },
+            ["timer1"] = new DataSourceConfig
+            {
+                Plugin = "__builtin:timer",
+                Config = JsonDocument.Parse("""{"format":"mm\\:ss"}""")
+                    .RootElement.EnumerateObject()
+                    .ToDictionary(p => p.Name, p => p.Value.Clone())
+            }
+        },
+        Gauges = new()
+        {
+            ["clock"] = new Config.GaugeConfig
+            {
+                Source = "clock", Sensor = "time",
+                Renderer = new RendererConfig { Type = "Text" },
+                Label = "Time"
+            },
+            ["seconds"] = new Config.GaugeConfig
+            {
+                Source = "clock", Sensor = "second",
+                Renderer = new RendererConfig { Type = "FullRing" },
+                Label = "Sec", Min = 0, Max = 59
+            },
+            ["counter"] = new Config.GaugeConfig
+            {
+                Source = "counter1", Sensor = "value",
+                Renderer = new RendererConfig { Type = "NumberBar" },
+                Label = "Count", Min = 0, Max = 100
+            },
+            ["timer"] = new Config.GaugeConfig
+            {
+                Source = "timer1", Sensor = "elapsed",
+                Renderer = new RendererConfig { Type = "Text" },
+                Label = "Timer"
+            },
+            ["timerRing"] = new Config.GaugeConfig
+            {
+                Source = "timer1", Sensor = "elapsedSeconds",
+                Renderer = new RendererConfig { Type = "FullRing" },
+                Label = "Timer", Min = 0, Max = 300
+            }
+        },
+        Scenes = new()
+        {
+            ["main"] = new DeviceSceneConfig
+            {
+                ActiveScene = "dashboard",
+                Pinned = new()
+                {
+                    ["0"] = new ButtonAssignmentConfig
+                    {
+                        Gauge = "clock",
+                        Action = new ActionConfig { Type = "switchScene", Parameters = new() { ["scene"] = JsonDocument.Parse("\"next\"").RootElement.Clone() } }
+                    }
+                },
+                List = new()
+                {
+                    ["dashboard"] = new SceneConfig
+                    {
+                        Buttons = new()
+                        {
+                            ["1"] = new ButtonAssignmentConfig { Gauge = "seconds" },
+                            ["2"] = new ButtonAssignmentConfig { Gauge = "counter" },
+                            ["3"] = new ButtonAssignmentConfig { Gauge = "timer" },
+                            ["4"] = new ButtonAssignmentConfig { Gauge = "timerRing" }
+                        }
+                    },
+                    ["timers"] = new SceneConfig
+                    {
+                        Buttons = new()
+                        {
+                            ["1"] = new ButtonAssignmentConfig { Gauge = "timer" },
+                            ["2"] = new ButtonAssignmentConfig { Gauge = "timerRing" },
+                            ["3"] = new ButtonAssignmentConfig { Gauge = "counter" },
+                            ["4"] = new ButtonAssignmentConfig { Gauge = "counter" }
+                        }
+                    }
+                }
+            }
+        },
+        Themes = new()
+        {
+            ["default"] = new ThemeConfig
+            {
+                Primary = "#4CAF50", Secondary = "#333333",
+                Background = "#1A1A1A", Text = "#FFFFFF"
+            }
+        }
+    };
 }
 
-int PanelCount = device.ImageButtonCount;
-var values = new int[PanelCount];
-var gaugeTypeIndex = new int[PanelCount];
-var themeIndex = new int[PanelCount];
-var rangeIndex = new int[PanelCount];
-float rainbowHue = 0f;
+// ── Legacy demo mode ──────────────────────────────────────────────────────
 
-var stateLock = new object();
-int selectedPanel = 0;
-var dirty = new bool[PanelCount];
-for (int i = 0; i < PanelCount; i++) dirty[i] = true;
-
-long uploadCount = 0;
-double totalUploadMs = 0;
-var recentUploadMs = new Queue<double>();
-const int recentUploadWindow = 200;
-var metricsLock = new object();
-var metricsStopwatch = Stopwatch.StartNew();
-var statsCts = new CancellationTokenSource();
-var renderCts = new CancellationTokenSource();
-
-RenderFunc[] styles;
-
-styles =
-[
-    Styles.Radial(180, 180),
-    Styles.Radial(135, 270),
-    Styles.TankFill(),
-    Styles.Numeric(),
-    Styles.Bar(),
-    Styles.ImageFade(
-        ResourceLoader.TryLoadBitmap("comp04.png") ?? throw new Exception("Failed to load comp04.png"),
-        ResourceLoader.TryLoadBitmap("comp05.png") ?? throw new Exception("Failed to load comp05.png")
-    ),
-    Styles.Image(ResourceLoader.TryLoadBitmap("dopelives.png") ?? throw new Exception("Failed to load dopelives.png")),
-    Styles.Image(ResourceLoader.TryLoadBitmap("enby.png") ?? throw new Exception("Failed to load enby.png")),
-    Styles.Perimeter(),
-    Styles.FullRing(),
-    Styles.LiquidTank(),
-    Styles.BigDial(),
-    Styles.NumberBar(),
-    Styles.LedRing(),
-    Styles.ArcScale(),
-    Styles.DualRing(),
-    Styles.ValueScale(),
-    Styles.SegmentBar(),
-    Styles.Battery(),
-    Styles.Thermometer()
-];
-
-try
+static async Task RunDemo(string[] args)
 {
-    Console.WriteLine("Initializing [0]...");
+    Console.WriteLine("=== Oasis Tech Demo ===\n");
+
+    IMirageDevice device;
+
+    if (args.Contains("--simulator"))
+    {
+        int simButtons = ParseIntArg(args, "--sim-buttons", 4);
+        int simTactile = ParseIntArg(args, "--sim-tactile", 3);
+        int simSize = ParseIntArg(args, "--sim-size", 128);
+        Console.WriteLine($"Simulator ({simButtons} display, {simTactile} tactile, {simSize}px).");
+        device = new SimulatorDevice(simButtons, simTactile, simSize);
+    }
+    else
+    {
+        var devices = DeviceFactory.DiscoverDevices().ToList();
+        if (devices.Count == 0)
+        {
+            Console.WriteLine("No devices found. Run with --simulator.");
+            return;
+        }
+        device = devices[0];
+        Console.WriteLine($"Using device Serial={device.SerialNumber}");
+    }
+
+    var typeface = ResourceLoader.TryLoadTypeface(ParseStringArg(args, "--font", "prophet.ttf"));
+
+    int panelCount = device.ImageButtonCount;
+    var values = new int[panelCount];
+    var gaugeTypeIndex = new int[panelCount];
+    var themeIndex = new int[panelCount];
+    var rangeIndex = new int[panelCount];
+    float rainbowHue = 0f;
+    int selectedPanel = 0;
+    var stateLock = new object();
+    long uploadCount = 0;
+    double totalUploadMs = 0;
+    var recentUploadMs = new Queue<double>();
+    var metricsLock = new object();
+    var metricsStopwatch = Stopwatch.StartNew();
+
+    RenderFunc[] styles =
+    [
+        Styles.Radial(180, 180), Styles.Radial(135, 270),
+        Styles.TankFill(), Styles.Numeric(), Styles.Bar(),
+        Styles.Perimeter(), Styles.FullRing(), Styles.LiquidTank(),
+        Styles.BigDial(), Styles.NumberBar(), Styles.LedRing(),
+        Styles.ArcScale(), Styles.DualRing(), Styles.ValueScale(),
+        Styles.SegmentBar(), Styles.Battery(), Styles.Thermometer(),
+        Styles.Text()
+    ];
+
     await device.InitializeAsync();
     await device.SetBrightnessAsync(10);
 
-
-    device.ImageButtonChanged += (s, e) =>
+    device.ImageButtonChanged += (_, e) =>
     {
         if (!e.IsPressed) return;
-        int previous;
-        lock (stateLock)
-        {
-            previous = selectedPanel;
-            selectedPanel = e.ButtonIndex;
-            dirty[previous] = true;
-            if (e.ButtonIndex < PanelCount) dirty[e.ButtonIndex] = true;
-        }
-        Console.WriteLine($"Selected panel: {e.ButtonIndex + 1}");
+        lock (stateLock) { selectedPanel = e.ButtonIndex; }
     };
 
-    device.TactileButtonChanged += (s, e) =>
+    device.TactileButtonChanged += (_, e) =>
     {
         if (!e.IsPressed) return;
         lock (stateLock)
         {
-            int panel = selectedPanel;
-            if (e.ButtonIndex == 0)
-                gaugeTypeIndex[panel] = (gaugeTypeIndex[panel] + 1) % styles.Length;
-            else if (e.ButtonIndex == 1)
-                themeIndex[panel] = (themeIndex[panel] + 1) % 4;
-            else if (e.ButtonIndex == 2)
-            {
-                rangeIndex[panel] = (rangeIndex[panel] + 1) % 3;
-                values[panel] = 0;
-            }
-            else return;
-            dirty[panel] = true;
-            Console.WriteLine($"Panel {panel + 1} aspects: type={gaugeTypeIndex[panel]} theme={themeIndex[panel]} range={rangeIndex[panel]}");
+            if (e.ButtonIndex == 0) gaugeTypeIndex[selectedPanel] = (gaugeTypeIndex[selectedPanel] + 1) % styles.Length;
+            else if (e.ButtonIndex == 1) themeIndex[selectedPanel] = (themeIndex[selectedPanel] + 1) % 4;
+            else if (e.ButtonIndex == 2) { rangeIndex[selectedPanel] = (rangeIndex[selectedPanel] + 1) % 3; values[selectedPanel] = 0; }
         }
     };
 
-    device.EncoderRotated += (s, e) =>
+    device.EncoderRotated += (_, e) =>
     {
         if (e.EncoderIndex != 0) return;
         lock (stateLock)
         {
-            int panel = selectedPanel;
-            var (min, max) = GetRange(rangeIndex[panel]);
-            values[panel] = Math.Clamp(values[panel] + e.RotationDelta, min, max);
-            dirty[panel] = true;
+            var (min, max) = GetRange(rangeIndex[selectedPanel]);
+            values[selectedPanel] = Math.Clamp(values[selectedPanel] + e.RotationDelta, min, max);
         }
     };
 
-    device.EncoderButtonChanged += (s, e) =>
+    device.EncoderButtonChanged += (_, e) =>
     {
         if (e.EncoderIndex != 0 || !e.IsPressed) return;
-        lock (stateLock)
-        {
-            gaugeTypeIndex[selectedPanel] = (gaugeTypeIndex[selectedPanel] + 1) % styles.Length;
-            dirty[selectedPanel] = true;
-            Console.WriteLine($"Panel {selectedPanel + 1} aspects: type={gaugeTypeIndex[selectedPanel]} theme={themeIndex[selectedPanel]} range={rangeIndex[selectedPanel]}");
-        }
+        lock (stateLock) { gaugeTypeIndex[selectedPanel] = (gaugeTypeIndex[selectedPanel] + 1) % styles.Length; }
     };
 
     var disconnectCts = new CancellationTokenSource();
-    device.Disconnected += (_, _) =>
-    {
-        Console.WriteLine("\nDevice disconnected.");
-        disconnectCts.Cancel();
-    };
+    device.Disconnected += (_, _) => { Console.WriteLine("\nDisconnected."); disconnectCts.Cancel(); };
 
     await device.StartListeningAsync();
-    _ = PrintStatsLoopAsync(statsCts.Token);
-    _ = RenderLoopAsync(renderCts.Token);
+    Console.WriteLine("Demo running. Ctrl+C to stop.\n");
 
-    Console.WriteLine("Ready:");
-    Console.WriteLine("- Press panel buttons 1-6 to select a value.");
-    Console.WriteLine("- Turn big knob (encoder 1) to change selected value.");
-    Console.WriteLine("- Upload performance stats print every 2 seconds.\n");
-
-    try { await Task.Delay(Timeout.Infinite, disconnectCts.Token); }
-    catch (OperationCanceledException) { }
-
-    async Task RenderLoopAsync(CancellationToken token)
+    _ = Task.Run(async () =>
     {
-        const int targetFps = 30;
-        var frameDuration = TimeSpan.FromSeconds(1.0 / targetFps);
-
-        while (!token.IsCancellationRequested)
+        while (!disconnectCts.IsCancellationRequested)
         {
-            var frameStart = Stopwatch.GetTimestamp();
-
-                rainbowHue = (rainbowHue + (float)(frameDuration.TotalSeconds * 140.0)) % 360f;
- 
-            bool anyUploaded = false;
-            var sw = Stopwatch.StartNew();
-
-
-            for (int panel = 0; panel < Math.Min(PanelCount, device.ImageButtonCount); panel++)
-            {
-                try
-                {
-                    byte[] imageData = RenderGaugeToJpeg(panel, typeface, selectedPanel, values, gaugeTypeIndex, styles, themeIndex, rangeIndex, rainbowHue, device.ImageWidth, device.ImageHeight);
-
-                    await device.SetButtonImageNoFlushAsync(panel, imageData);
-                    anyUploaded = true;
-
-                    lock (metricsLock)
-                        uploadCount++;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Render error on panel {panel + 1}: {ex.Message}");
-                }
-            }
-
-            if (anyUploaded)
-            {
-                await device.FlushAsync();
-                sw.Stop();
-
-                lock (metricsLock)
-                {
-                    totalUploadMs += sw.Elapsed.TotalMilliseconds;
-                    recentUploadMs.Enqueue(sw.Elapsed.TotalMilliseconds);
-                    while (recentUploadMs.Count > recentUploadWindow)
-                        recentUploadMs.Dequeue();
-                }
-            }
-
-            var elapsed = Stopwatch.GetElapsedTime(frameStart);
-            var remaining = frameDuration - elapsed;
-            if (remaining > TimeSpan.Zero)
-                await Task.Delay(remaining, token);
-        }
-    }
-
-    async Task PrintStatsLoopAsync(CancellationToken token)
-    {
-        while (!token.IsCancellationRequested)
-        {
-            await Task.Delay(TimeSpan.FromSeconds(2), token);
-
-            long count;
-            double avgMs;
-            double p95Ms;
-            double ups;
-
+            await Task.Delay(2000, disconnectCts.Token).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             lock (metricsLock)
             {
-                count = uploadCount;
-                avgMs = count == 0 ? 0 : totalUploadMs / count;
-                ups = count == 0 ? 0 : count / Math.Max(0.001, metricsStopwatch.Elapsed.TotalSeconds);
-
-                if (recentUploadMs.Count == 0)
-                {
-                    p95Ms = 0;
-                }
-                else
-                {
-                    var arr = recentUploadMs.ToArray();
-                    Array.Sort(arr);
-                    int idx = (int)Math.Ceiling(arr.Length * 0.95) - 1;
-                    idx = Math.Clamp(idx, 0, arr.Length - 1);
-                    p95Ms = arr[idx];
-                }
+                double avg = uploadCount == 0 ? 0 : totalUploadMs / uploadCount;
+                double ups = uploadCount / Math.Max(0.001, metricsStopwatch.Elapsed.TotalSeconds);
+                Console.WriteLine($"[gfx] uploads={uploadCount} avg={avg:F1}ms rate={ups:F2}/s");
             }
-
-            Console.WriteLine($"[gfx] uploads={count} avg={avgMs:F1}ms p95={p95Ms:F1}ms rate={ups:F2}/s");
         }
+    });
+
+    var frameDuration = TimeSpan.FromSeconds(1.0 / 30);
+    while (!disconnectCts.IsCancellationRequested)
+    {
+        var frameStart = Stopwatch.GetTimestamp();
+        rainbowHue = (rainbowHue + (float)(frameDuration.TotalSeconds * 140.0)) % 360f;
+        var sw = Stopwatch.StartNew();
+
+        for (int p = 0; p < panelCount; p++)
+        {
+            int sel, gi, ti, ri, val;
+            lock (stateLock) { sel = selectedPanel; gi = gaugeTypeIndex[p]; ti = themeIndex[p]; ri = rangeIndex[p]; val = values[p]; }
+
+            var (min, max) = GetRange(ri);
+            var (primary, secondary, background, text) = GetTheme(ti, rainbowHue);
+            if (p == sel) secondary = primary.WithAlpha(150);
+
+            var theme = new Theme { Typeface = typeface, PrimaryColor = primary, SecondaryColor = secondary, BackgroundColor = background, TextColor = text, Accents = [] };
+            var rv = new RangedValue(min, max, val);
+
+            using var surface = SKSurface.Create(new SKImageInfo(device.ImageWidth, device.ImageHeight));
+            styles[gi](surface.Canvas, theme, typeface ?? SKTypeface.Default, new SKRect(0, 0, device.ImageWidth, device.ImageHeight), $"P{p + 1}", rv);
+            using var img = surface.Snapshot();
+            using var enc = img.Encode(SKEncodedImageFormat.Jpeg, 90);
+
+            await device.SetButtonImageNoFlushAsync(p, enc.ToArray());
+            lock (metricsLock) uploadCount++;
+        }
+
+        await device.FlushAsync();
+        sw.Stop();
+        lock (metricsLock) totalUploadMs += sw.Elapsed.TotalMilliseconds;
+
+        var elapsed = Stopwatch.GetElapsedTime(frameStart);
+        var remaining = frameDuration - elapsed;
+        if (remaining > TimeSpan.Zero)
+            await Task.Delay(remaining, disconnectCts.Token).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
     }
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"Error: {ex.Message}");
-    Console.WriteLine(ex.StackTrace);
-}
-finally
-{
-    Console.WriteLine("\nStopping...");
-    statsCts.Cancel();
-    renderCts.Cancel();
+
     await device.StopListeningAsync();
     device.Dispose();
 }
 
-static byte[] RenderGaugeToJpeg(
-    int panel,
-    SKTypeface? typeface,
-    int selectedPanel,
-    int[] values,
-    int[] gaugeTypeIndex,
-    RenderFunc[] styles,
-    int[] themeIndex,
-    int[] rangeIndex,
-    float rainbowHue,
-    int imageWidth = 64,
-    int imageHeight = 64)
+// ── Shared helpers ────────────────────────────────────────────────────────
+
+static (int min, int max) GetRange(int idx) => idx switch
 {
-    var (min, max) = GetRange(rangeIndex[panel]);
-    var (primary, secondary, background, text) = GetTheme(themeIndex[panel], rainbowHue);
+    0 => (-100, 100), 1 => (0, 100), _ => (-1000, 1000)
+};
 
-    // Override secondary color if this panel is selected
-    if (panel == selectedPanel)
-    {
-        secondary = primary.WithAlpha(150);
-    }
-
-    var theme = new Theme
-    {
-        Typeface = typeface,
-        PrimaryColor = primary,
-        SecondaryColor = secondary,
-        BackgroundColor = background,
-        TextColor = text,
-        Accents = Array.Empty<SKColor>()
-    };
-
-    var rangedValue = new RangedValue(min, max, values[panel]);
-    var label = $"Panel {panel + 1}";
-
-    // Use default typeface if none provided
-    var effectiveTypeface = typeface ?? SKTypeface.Default;
-
-    // Select the appropriate renderer
-    RenderFunc renderer = styles[gaugeTypeIndex[panel]] ?? Styles.Numeric();
-
-    // Create gauge config with renderer
-    var config = new GaugeConfig
-    {
-        Value=rangedValue,
-        Label=label,
-        Typeface=effectiveTypeface,
-        Theme=theme,
-        Renderer=renderer
-    };
-
-    // Create bitmap and canvas for rendering
-    var bitmap = new SKBitmap(imageWidth, imageHeight, SKColorType.Rgba8888, SKAlphaType.Premul);
-    using (var canvas = new SKCanvas(bitmap))
-    {
-        var bounds = new SKRect(0, 0, imageWidth, imageHeight);
-        // Render using the config's renderer function
-        config.Renderer(canvas, config.Theme, config.Typeface, bounds, config.Label, config.Value);
-    }
-
-    // Encode to JPEG
-    using var image = SKImage.FromBitmap(bitmap);
-    using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 100);
-    bitmap.Dispose();
-
-    return encoded.ToArray();
-}
-
-static (int min, int max) GetRange(int idx)
+static (SkiaSharp.SKColor primary, SkiaSharp.SKColor secondary, SkiaSharp.SKColor background, SkiaSharp.SKColor text) GetTheme(int idx, float hue) => idx switch
 {
-    return idx switch
-    {
-        0 => (-100, 100),
-        1 => (0, 100),
-        _ => (-1000, 1000)
-    };
-}
-
-static (SKColor primary, SKColor secondary, SKColor background, SKColor text) GetTheme(int idx, float hue)
-{
-    return idx switch
-    {
-        0 => (SKColor.FromHsv(hue % 360f, 90f, 100f), new SKColor(70, 78, 94), new SKColor(18, 22, 30), new SKColor(243, 246, 255)),
-        1 => (new SKColor(120, 220, 255), new SKColor(42, 62, 74), new SKColor(8, 18, 24), new SKColor(224, 246, 255)),
-        2 => (new SKColor(255, 186, 72), new SKColor(84, 62, 40), new SKColor(24, 16, 8), new SKColor(255, 243, 224)),
-        _ => (new SKColor(151, 242, 156), new SKColor(48, 84, 52), new SKColor(10, 24, 12), new SKColor(235, 255, 236))
-    };
-}
+    0 => (SkiaSharp.SKColor.FromHsv(hue % 360f, 90f, 100f), new(70, 78, 94), new(18, 22, 30), new(243, 246, 255)),
+    1 => (new(120, 220, 255), new(42, 62, 74), new(8, 18, 24), new(224, 246, 255)),
+    2 => (new(255, 186, 72), new(84, 62, 40), new(24, 16, 8), new(255, 243, 224)),
+    _ => (new(151, 242, 156), new(48, 84, 52), new(10, 24, 12), new(235, 255, 236))
+};
 
 static int ParseIntArg(string[] args, string name, int defaultValue)
 {
     for (int i = 0; i < args.Length - 1; i++)
-        if (args[i] == name && int.TryParse(args[i + 1], out int v))
-            return v;
+        if (args[i] == name && int.TryParse(args[i + 1], out int v)) return v;
     return defaultValue;
 }
 
-static string ParseStringArg(string[] args, string name, string defaultValue)
+static string ParseStringArg(string[] args, string name, string? defaultValue)
 {
     for (int i = 0; i < args.Length - 1; i++)
-        if (args[i] == name)
-            return args[i + 1];
-    return defaultValue;
+        if (args[i] == name) return args[i + 1];
+    return defaultValue!;
 }

@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MirageBox.Oasis.Desktop.Views.AddDataSourceDialog"
+        Title="Add Data Source"
+        Width="420" Height="300"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False">
+
+    <StackPanel Margin="20" Spacing="14">
+        <TextBlock Text="Add Data Source" FontWeight="SemiBold" FontSize="16" />
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Name" FontSize="12" Foreground="#999" />
+            <TextBox x:Name="NameBox" PlaceholderText="e.g. myTimer, hwMonitor..." />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Plugin" FontSize="12" Foreground="#999" />
+            <ComboBox x:Name="PluginCombo" SelectedIndex="0" HorizontalAlignment="Stretch"
+                      SelectionChanged="OnPluginSelectionChanged">
+                <ComboBoxItem Content="__builtin:clock" Tag="__builtin:clock" />
+                <ComboBoxItem Content="__builtin:counter" Tag="__builtin:counter" />
+                <ComboBoxItem Content="__builtin:timer" Tag="__builtin:timer" />
+                <ComboBoxItem Content="__builtin:static" Tag="__builtin:static" />
+                <ComboBoxItem Content="Custom plugin..." Tag="custom" />
+            </ComboBox>
+        </StackPanel>
+
+        <StackPanel Spacing="4" x:Name="CustomPluginPanel" IsVisible="False">
+            <TextBlock Text="Plugin path / assembly" FontSize="12" Foreground="#999" />
+            <TextBox x:Name="CustomPluginBox"
+                     PlaceholderText="e.g. MirageBox.DataSource.LHM" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8"
+                    Margin="0,8,0,0">
+            <Button Content="Cancel" Click="OnCancel" Padding="16,6" />
+            <Button Content="Add" Click="OnAdd" Padding="16,6"
+                    Classes="accent" />
+        </StackPanel>
+    </StackPanel>
+</Window>

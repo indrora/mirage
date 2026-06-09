@@ -21,8 +21,9 @@ public class OasisEngine : IDisposable
     {
         _config = config;
         _rendererRegistry = new RendererRegistry();
-        _actionExecutor = new ActionExecutor(name =>
-            _sceneManagers.TryGetValue(name, out var sm) ? sm : null);
+        _actionExecutor = new ActionExecutor(
+            name => _sceneManagers.TryGetValue(name, out var sm) ? sm : null,
+            _dataSources);
     }
 
     public async Task StartAsync(CancellationToken ct = default)

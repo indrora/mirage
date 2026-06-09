@@ -6,6 +6,14 @@ namespace MirageBox.Oasis.Core.DataSources;
 
 public static class PluginLoader
 {
+    private static readonly Dictionary<string, Type> BuiltinTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["__builtin:static"] = typeof(StaticDataSource),
+        ["__builtin:clock"] = typeof(ClockDataSource),
+        ["__builtin:counter"] = typeof(CounterDataSource),
+        ["__builtin:timer"] = typeof(TimerDataSource),
+    };
+
     private static readonly Dictionary<string, Func<IDataSource>> BuiltinSources = new(StringComparer.OrdinalIgnoreCase)
     {
         ["__builtin:static"] = () => new StaticDataSource(),
@@ -13,6 +21,13 @@ public static class PluginLoader
         ["__builtin:counter"] = () => new CounterDataSource(),
         ["__builtin:timer"] = () => new TimerDataSource(),
     };
+
+    public static Type? ResolveType(string pluginName)
+    {
+        if (BuiltinTypes.TryGetValue(pluginName, out var type))
+            return type;
+        return null;
+    }
 
     public static IDataSource? Create(string pluginName, string? pluginsDir = null)
     {

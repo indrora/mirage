@@ -4,12 +4,17 @@ namespace MirageBox.Oasis.Core.Config;
 
 public static class ConfigLoader
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    private static readonly JsonSerializerOptions ReadOptions = new()
     {
-        WriteIndented = true,
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
+    };
+
+    private static readonly JsonSerializerOptions WriteOptions = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
     };
 
     public static string DefaultConfigPath =>
@@ -24,7 +29,7 @@ public static class ConfigLoader
             return new OasisConfig();
 
         var json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<OasisConfig>(json, JsonOptions) ?? new OasisConfig();
+        return JsonSerializer.Deserialize<OasisConfig>(json, ReadOptions) ?? new OasisConfig();
     }
 
     public static void Save(OasisConfig config, string? path = null)
@@ -34,7 +39,7 @@ public static class ConfigLoader
         if (dir != null && !Directory.Exists(dir))
             Directory.CreateDirectory(dir);
 
-        var json = JsonSerializer.Serialize(config, JsonOptions);
+        var json = JsonSerializer.Serialize(config, WriteOptions);
         File.WriteAllText(path, json);
     }
 }

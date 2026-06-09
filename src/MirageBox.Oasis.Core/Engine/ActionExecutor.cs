@@ -1,16 +1,19 @@
 using System.Diagnostics;
 using System.Text.Json;
 using MirageBox.Oasis.Core.Config;
+using MirageBox.Oasis.Core.DataSources;
 
 namespace MirageBox.Oasis.Core.Engine;
 
 public class ActionExecutor
 {
     private readonly Func<string, SceneManager?> _getSceneManager;
+    private readonly Dictionary<string, IDataSource> _dataSources;
 
-    public ActionExecutor(Func<string, SceneManager?> getSceneManager)
+    public ActionExecutor(Func<string, SceneManager?> getSceneManager, Dictionary<string, IDataSource> dataSources)
     {
         _getSceneManager = getSceneManager;
+        _dataSources = dataSources;
     }
 
     public void Execute(ActionConfig action, string deviceName)
@@ -46,6 +49,21 @@ public class ActionExecutor
                         UseShellExecute = false,
                         CreateNoWindow = true
                     });
+                }
+                break;
+
+            case "dataSource":
+                var sourceName = GetParam(action, "source");
+                var sourceAction = GetParam(action, "action");
+                if (sourceName != null && _dataSources.TryGetValue(sourceName, out var source))
+                {
+                    if (sourceAction is null or "__default__")
+                        sourceAction = SourceActionHelper.GetDefaultAction(source.GetType());
+                    if (sourceAction != null)
+                    {
+                        var param = GetParam(action, "param");
+                        SourceActionHelper.ExecuteAction(source, sourceAction, param);
+                    }
                 }
                 break;
         }

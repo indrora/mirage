@@ -51,6 +51,24 @@ public class SceneManager
         return null;
     }
 
+    public ResolvedButton? GetTactileButton(int buttonIndex)
+    {
+        var key = buttonIndex.ToString();
+        if (_config.List.TryGetValue(_activeScene, out var scene)
+            && scene.TactileButtons?.TryGetValue(key, out var btn) == true)
+            return new ResolvedButton(btn.Gauge, btn.Action);
+        return null;
+    }
+
+    public ResolvedButton? GetEncoder(int encoderIndex)
+    {
+        var key = encoderIndex.ToString();
+        if (_config.List.TryGetValue(_activeScene, out var scene)
+            && scene.Encoders?.TryGetValue(key, out var btn) == true)
+            return new ResolvedButton(btn.Gauge, btn.Action);
+        return null;
+    }
+
     public bool IsPinned(int buttonIndex) =>
         _config.Pinned.ContainsKey(buttonIndex.ToString());
 }

@@ -17,6 +17,8 @@ public enum ButtonPressType { ShortPress, LongPress, EncoderCW, EncoderCCW }
 
 public record SensorInfo(string Path, SensorValueType Type, string Description, bool RequiresElevation = false);
 
+public record SourceActionInfo(string Name, string Description, string? ParamName = null, string? ParamDefault = null, bool IsDefault = false);
+
 public interface IDataSource : IDisposable
 {
     string Name { get; }

@@ -50,6 +50,22 @@ public class TimerDataSource : IDataSource
         }
     }
 
+    [SourceAction("toggle", "Start or stop the timer", IsDefault = true)]
+    public void Toggle()
+    {
+        if (_stopwatch.IsRunning) _stopwatch.Stop();
+        else _stopwatch.Start();
+    }
+
+    [SourceAction("start", "Start the timer")]
+    public void Start() => _stopwatch.Start();
+
+    [SourceAction("stop", "Stop the timer")]
+    public void Stop() => _stopwatch.Stop();
+
+    [SourceAction("reset", "Reset to zero")]
+    public void Reset() => _stopwatch.Reset();
+
     public RenderFunc? GetCustomRenderer(string sensorPath) => null;
     public void Dispose() { }
 }

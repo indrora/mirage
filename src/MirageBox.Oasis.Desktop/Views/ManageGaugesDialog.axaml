@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MirageBox.Oasis.Desktop.ViewModels"
+        x:Class="MirageBox.Oasis.Desktop.Views.ManageGaugesDialog"
+        x:DataType="vm:ManageGaugesViewModel"
+        Title="Manage Gauges"
+        Width="600" Height="500"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+    <Grid ColumnDefinitions="200,*" Margin="12">
+
+        <!-- Gauge list -->
+        <DockPanel Grid.Column="0" Margin="0,0,8,0">
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="4" Margin="0,6,0,0">
+                <Button Content="+ Add" Padding="10,4" Command="{Binding AddCommand}" />
+                <Button Content="- Remove" Padding="10,4" Command="{Binding RemoveCommand}" />
+            </StackPanel>
+            <ListBox ItemsSource="{Binding Names}"
+                     SelectedItem="{Binding SelectedName}"
+                     Background="Transparent" />
+        </DockPanel>
+
+        <!-- Gauge editor -->
+        <Border Grid.Column="1" Background="#1E1E1E" CornerRadius="6" Padding="14">
+            <StackPanel Spacing="10" IsVisible="{Binding HasSelection}">
+                <TextBlock Text="{Binding SelectedName}" FontWeight="SemiBold" FontSize="15" />
+
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Data source" FontSize="11" Foreground="#999" />
+                    <AutoCompleteBox ItemsSource="{Binding DataSourceNames}"
+                                     Text="{Binding Source, Mode=TwoWay}"
+                                     FilterMode="ContainsOrdinal" />
+                </StackPanel>
+
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Sensor path" FontSize="11" Foreground="#999" />
+                    <TextBox Text="{Binding Sensor}" />
+                </StackPanel>
+
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Renderer" FontSize="11" Foreground="#999" />
+                    <ComboBox ItemsSource="{Binding RendererTypes}"
+                              SelectedItem="{Binding RendererType}"
+                              HorizontalAlignment="Stretch" />
+                </StackPanel>
+
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Label" FontSize="11" Foreground="#999" />
+                    <TextBox Text="{Binding Label}" />
+                </StackPanel>
+
+                <Grid ColumnDefinitions="*,8,*">
+                    <StackPanel Grid.Column="0" Spacing="3">
+                        <TextBlock Text="Min" FontSize="11" Foreground="#999" />
+                        <NumericUpDown Value="{Binding Min}" FormatString="F0" Increment="1" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="3">
+                        <TextBlock Text="Max" FontSize="11" Foreground="#999" />
+                        <NumericUpDown Value="{Binding Max}" FormatString="F0" Increment="1" />
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Theme override" FontSize="11" Foreground="#999" />
+                    <TextBox Text="{Binding Theme}" PlaceholderText="(use default)" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

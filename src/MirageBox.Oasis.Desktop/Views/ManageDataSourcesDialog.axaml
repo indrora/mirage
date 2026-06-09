@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MirageBox.Oasis.Desktop.ViewModels"
+        x:Class="MirageBox.Oasis.Desktop.Views.ManageDataSourcesDialog"
+        x:DataType="vm:ManageDataSourcesViewModel"
+        Title="Manage Data Sources"
+        Width="550" Height="400"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+    <Grid ColumnDefinitions="220,*" Margin="12">
+
+        <!-- Source list -->
+        <DockPanel Grid.Column="0" Margin="0,0,8,0">
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="4" Margin="0,6,0,0">
+                <Button Content="+ Add" Padding="10,4" Command="{Binding AddCommand}" />
+                <Button Content="- Remove" Padding="10,4" Command="{Binding RemoveCommand}" />
+            </StackPanel>
+            <ListBox ItemsSource="{Binding Sources}"
+                     SelectedItem="{Binding SelectedSource}"
+                     Background="Transparent">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DataSourceEntryViewModel">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
+                            <TextBlock Text="{Binding Plugin}" FontSize="10" Foreground="#888" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <!-- Source editor -->
+        <Border Grid.Column="1" Background="#1E1E1E" CornerRadius="6" Padding="14">
+            <StackPanel Spacing="10" IsVisible="{Binding HasSelection}">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Name" FontSize="11" Foreground="#999" />
+                    <TextBox Text="{Binding SelectedSource.Name}" />
+                </StackPanel>
+
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Plugin" FontSize="11" Foreground="#999" />
+                    <ComboBox x:Name="PluginCombo" HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding PluginOptions}"
+                              SelectedItem="{Binding SelectedSource.Plugin}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

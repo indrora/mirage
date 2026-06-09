@@ -1,0 +1,349 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MirageBox.Oasis.Desktop.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
+        x:Class="MirageBox.Oasis.Desktop.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        x:CompileBindings="True"
+        Title="Oasis — MirageBox Control Surface Manager"
+        Width="1100" Height="700" MinWidth="900" MinHeight="550">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Window.Styles>
+        <Style Selector="Border.slot">
+            <Setter Property="Width" Value="100" />
+            <Setter Property="Height" Value="76" />
+            <Setter Property="Margin" Value="3" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseHighBrush }" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}" />
+        </Style>
+        <Style Selector="Border.slot.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AccentButtonForegroundPressed}" />
+        </Style>
+        
+        <Style Selector="Border.slot.pinned">
+            <Setter Property="BorderBrush" Value="#FFB300" />
+        </Style>
+        <Style Selector="Border.slot.pinned.selected">
+            <Setter Property="BorderBrush" Value="#FFD54F" />
+        </Style>
+        <Style Selector="Border.slot.empty">
+            <Setter Property="Opacity" Value="0.5" />
+        </Style>
+        <Style Selector="TextBlock.section-header">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeLarge}" />
+        </Style>
+        <Style Selector="TextBlock.field-label">
+            <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundPressed}" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Padding="12,6">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                    <Button Content="Start" Command="{Binding StartEngineCommand}"
+                            IsEnabled="{Binding !IsRunning}" />
+                    <Button Content="Stop" Command="{Binding StopEngineCommand}"
+                            IsEnabled="{Binding IsRunning}" />
+                    <Button Content="Restart" Command="{Binding RestartEngineCommand}" />
+                    <Rectangle Width="1" Margin="4,0" />
+                    <Button Content="Save" Command="{Binding SaveConfigCommand}" />
+                    <Button Content="Reload" Command="{Binding ReloadConfigCommand}" />
+                    <Rectangle Width="1" Margin="4,0" />
+                    <Button Content="Gauges..." Click="OnManageGauges" />
+                    <Button Content="Sources..." Click="OnManageDataSources" />
+                </StackPanel>
+                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+
+        <!-- Three-panel layout -->
+        <Grid ColumnDefinitions="200,Auto,*,Auto,270">
+
+            <!-- ════════════════════════════════════════════════ -->
+            <!-- LEFT: Devices                                    -->
+            <!-- ════════════════════════════════════════════════ -->
+            <Border Grid.Column="0" Padding="10">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top">
+                        <TextBlock Text="Devices" Classes="section-header"
+                                   VerticalAlignment="Center" />
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2"
+                                    HorizontalAlignment="Right">
+                            <Button Content="+" FontSize="12" Padding="6,2"
+                                    Command="{Binding AddDeviceCommand}" />
+                            <Button Content="-" FontSize="12" Padding="6,2"
+                                    Command="{Binding RemoveDeviceCommand}" />
+                        </StackPanel>
+                    </DockPanel>
+                    <ListBox ItemsSource="{Binding Devices}"
+                             SelectedItem="{Binding SelectedDevice}"
+                             Background="Transparent" Margin="0,6,0,0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DeviceViewModel">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="12" />
+                                    <TextBlock FontSize="10" Foreground="#888">
+                                        <Run Text="{Binding Buttons}" /><Run Text=" btn, " />
+                                        <Run Text="{Binding Tactile}" /><Run Text=" tac, " />
+                                        <Run Text="{Binding Encoders}" /><Run Text=" enc" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="4" ResizeBehavior="PreviousAndNext" />
+
+            <!-- ════════════════════════════════════════════════ -->
+            <!-- CENTER: Scene tabs + Button type tabs + Grid     -->
+            <!-- ════════════════════════════════════════════════ -->
+            <DockPanel Grid.Column="2" Margin="8"
+                       IsVisible="{Binding HasSelectedDevice}">
+
+                <!-- Scene tab strip -->
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2"
+                                VerticalAlignment="Center">
+                        <Button Content="+" FontSize="11" Padding="8,3"
+                                Command="{Binding AddSceneCommand}"
+                                ToolTip.Tip="Add scene" />
+                        <Button Content="-" FontSize="11" Padding="8,3"
+                                Command="{Binding RemoveSceneCommand}"
+                                ToolTip.Tip="Remove scene" />
+                    </StackPanel>
+                    <TextBlock Text="Scenes" Classes="section-header"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                </DockPanel>
+
+                <ListBox DockPanel.Dock="Top" ItemsSource="{Binding DeviceScenes}"
+                         SelectedItem="{Binding SelectedScene}"
+                         Background="Transparent" Margin="0,0,0,8">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SceneViewModel">
+                            <TextBlock Text="{Binding Name}" Margin="10,4" FontSize="13" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Button type tabs -->
+                <TabControl>
+                    <TabItem Header="Display">
+                        <ScrollViewer Margin="0,6,0,0">
+                            <ItemsControl ItemsSource="{Binding DisplaySlots}" x:Name="DisplaySlotsControl">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ButtonSlotViewModel">
+                                        <Border Classes="slot"
+                                                Classes.selected="{Binding IsSelected}"
+                                                Classes.pinned="{Binding IsPinned}"
+                                                Classes.empty="{Binding IsEmpty}"
+                                                Tapped="OnSlotTapped"
+                                                PointerPressed="OnSlotPointerPressed"
+                                                DragDrop.AllowDrop="True">
+                                            <StackPanel VerticalAlignment="Center"
+                                                        HorizontalAlignment="Center" Spacing="3">
+                                                <TextBlock Text="{Binding HeaderLabel}" FontSize="10"
+                                                           HorizontalAlignment="Center" Foreground="#999" />
+                                                <TextBlock Text="{Binding ContentLabel}" FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           HorizontalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           MaxWidth="85" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="Tactile">
+                        <ScrollViewer Margin="0,6,0,0">
+                            <ItemsControl ItemsSource="{Binding TactileSlots}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ButtonSlotViewModel">
+                                        <Border Classes="slot"
+                                                Classes.selected="{Binding IsSelected}"
+                                                Classes.empty="{Binding IsEmpty}"
+                                                Tapped="OnSlotTapped">
+                                            <StackPanel VerticalAlignment="Center"
+                                                        HorizontalAlignment="Center" Spacing="3">
+                                                <TextBlock Text="{Binding HeaderLabel}" FontSize="10"
+                                                           HorizontalAlignment="Center" Foreground="#999" />
+                                                <TextBlock Text="{Binding ContentLabel}" FontSize="11"
+                                                           HorizontalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           MaxWidth="85" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="Encoders">
+                        <ScrollViewer Margin="0,6,0,0">
+                            <ItemsControl ItemsSource="{Binding EncoderSlots}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ButtonSlotViewModel">
+                                        <Border Classes="slot"
+                                                Classes.selected="{Binding IsSelected}"
+                                                Classes.empty="{Binding IsEmpty}"
+                                                Tapped="OnSlotTapped">
+                                            <StackPanel VerticalAlignment="Center"
+                                                        HorizontalAlignment="Center" Spacing="3">
+                                                <TextBlock Text="{Binding HeaderLabel}" FontSize="10"
+                                                           HorizontalAlignment="Center" Foreground="#999" />
+                                                <TextBlock Text="{Binding ContentLabel}" FontSize="11"
+                                                           HorizontalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           MaxWidth="85" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="3" Width="4" ResizeBehavior="PreviousAndNext" />
+
+            <!-- ════════════════════════════════════════════════ -->
+            <!-- RIGHT: Button Properties                         -->
+            <!-- ════════════════════════════════════════════════ -->
+            <Border Grid.Column="4" Background="#1E1E1E" Padding="12">
+                <ScrollViewer>
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Properties" FontWeight="SemiBold" FontSize="14" />
+
+                        <TextBlock Text="Select a button to edit"
+                                   IsVisible="{Binding !HasSelectedSlot}"
+                                   Foreground="#666" FontStyle="Italic" />
+
+                        <StackPanel Spacing="10" IsVisible="{Binding HasSelectedSlot}">
+
+                            <!-- Gauge picker (display buttons only) -->
+                            <StackPanel Spacing="3" IsVisible="{Binding SelectedSlot.HasDisplay}">
+                                <TextBlock Text="Gauge" Classes="field-label" />
+                                <ComboBox ItemsSource="{Binding GaugeNames}"
+                                          SelectedItem="{Binding SelectedSlot.GaugeName}"
+                                          HorizontalAlignment="Stretch"
+                                          PlaceholderText="(none)" />
+                            </StackPanel>
+
+                            <CheckBox Content="Pinned across scenes"
+                                      IsChecked="{Binding SelectedSlot.IsPinned}"
+                                      IsVisible="{Binding SelectedSlot.HasDisplay}" />
+
+                            <Separator Margin="0,2" />
+
+                            <!-- Action -->
+                            <TextBlock Text="Action" Classes="section-header" />
+
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="On press:" Classes="field-label" />
+                                <ComboBox ItemsSource="{x:Static vm:MainWindowViewModel.ActionTypes}"
+                                          SelectedItem="{Binding SelectedSlot.ActionType}"
+                                          HorizontalAlignment="Stretch" />
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding SelectedSlot.ActionDescription}"
+                                       TextWrapping="Wrap" FontSize="11" Foreground="#888"
+                                       IsVisible="{Binding SelectedSlot.HasActionParam}" />
+
+                            <!-- Data source action -->
+                            <StackPanel Spacing="8"
+                                        IsVisible="{Binding SelectedSlot.IsDataSourceAction}">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Target source" Classes="field-label" />
+                                    <ComboBox ItemsSource="{Binding DataSourceNames}"
+                                              SelectedItem="{Binding SelectedSlot.ActionSource}"
+                                              HorizontalAlignment="Stretch" />
+                                </StackPanel>
+
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Action" Classes="field-label" />
+                                    <ComboBox ItemsSource="{Binding SelectedSlotSourceActions}"
+                                              SelectedItem="{Binding SelectedSlotActionDef}"
+                                              HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:SourceActionDef">
+                                                <StackPanel Spacing="1">
+                                                    <TextBlock Text="{Binding Description}" FontSize="12"
+                                                               IsVisible="{Binding IsSentinel}"
+                                                               Foreground="#999" />
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"
+                                                               IsVisible="{Binding !IsSentinel}" />
+                                                    <TextBlock Text="{Binding Description}" FontSize="11" Foreground="#888"
+                                                               IsVisible="{Binding !IsSentinel}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <StackPanel Spacing="3"
+                                            IsVisible="{Binding SelectedSlotActionHasParam}">
+                                    <TextBlock Text="{Binding SelectedSlotActionDef.ParamName}"
+                                               Classes="field-label" />
+                                    <TextBox Text="{Binding SelectedSlot.ActionSourceParam}"
+                                             PlaceholderText="{Binding SelectedSlotActionDef.ParamDefault}" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Param field (for switchScene, launch, command) -->
+                            <StackPanel Spacing="3"
+                                        IsVisible="{Binding SelectedSlot.HasActionTextField}">
+                                <TextBlock Text="{Binding SelectedSlot.ActionParamLabel}"
+                                           Classes="field-label" />
+                                <TextBox Text="{Binding SelectedSlot.ActionParam}"
+                                         PlaceholderText="{Binding SelectedSlot.ActionParamPlaceholder}" />
+                            </StackPanel>
+
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+        </Grid>
+    </DockPanel>
+</Window>
