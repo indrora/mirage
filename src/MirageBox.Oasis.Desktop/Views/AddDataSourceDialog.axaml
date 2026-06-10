@@ -11,12 +11,12 @@
         <TextBlock Text="Add Data Source" FontWeight="SemiBold" FontSize="16" />
 
         <StackPanel Spacing="4">
-            <TextBlock Text="Name" FontSize="12" Foreground="#999" />
+            <TextBlock Text="Name" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             <TextBox x:Name="NameBox" PlaceholderText="e.g. myTimer, hwMonitor..." />
         </StackPanel>
 
         <StackPanel Spacing="4">
-            <TextBlock Text="Plugin" FontSize="12" Foreground="#999" />
+            <TextBlock Text="Plugin" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             <ComboBox x:Name="PluginCombo" SelectedIndex="0" HorizontalAlignment="Stretch"
                       SelectionChanged="OnPluginSelectionChanged">
                 <ComboBoxItem Content="__builtin:clock" Tag="__builtin:clock" />
@@ -28,7 +28,7 @@
         </StackPanel>
 
         <StackPanel Spacing="4" x:Name="CustomPluginPanel" IsVisible="False">
-            <TextBlock Text="Plugin path / assembly" FontSize="12" Foreground="#999" />
+            <TextBlock Text="Plugin path / assembly" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             <TextBox x:Name="CustomPluginBox"
                      PlaceholderText="e.g. MirageBox.DataSource.LHM" />
         </StackPanel>

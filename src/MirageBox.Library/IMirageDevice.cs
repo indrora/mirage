@@ -16,6 +16,11 @@ public interface IMirageDevice : IDisposable
     int TactileButtonCount { get; }
 
     int EncoderCount { get; }
+    
+    /// <summary>
+    /// A device profile 
+    /// </summary>
+    DeviceProfile Profile { get; }
 
     /// <summary>Native image width expected by <see cref="SetButtonImageAsync"/>.</summary>
     int ImageWidth { get; }

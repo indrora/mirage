@@ -1,6 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:MirageBox.Oasis.Desktop.ViewModels"
+        xmlns:views="using:MirageBox.Oasis.Desktop.Views"
+        xmlns:gauges="using:MirageBox.TinyGauges"
         x:Class="MirageBox.Oasis.Desktop.Views.ManageGaugesDialog"
         x:DataType="vm:ManageGaugesViewModel"
         Title="Manage Gauges"
@@ -22,50 +24,125 @@
         </DockPanel>
 
         <!-- Gauge editor -->
-        <Border Grid.Column="1" Background="#1E1E1E" CornerRadius="6" Padding="14">
+        <Border Grid.Column="1" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="14">
+            <ScrollViewer>
             <StackPanel Spacing="10" IsVisible="{Binding HasSelection}">
                 <TextBlock Text="{Binding SelectedName}" FontWeight="SemiBold" FontSize="15" />
 
                 <StackPanel Spacing="3">
-                    <TextBlock Text="Data source" FontSize="11" Foreground="#999" />
+                    <TextBlock Text="Data source" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <AutoCompleteBox ItemsSource="{Binding DataSourceNames}"
                                      Text="{Binding Source, Mode=TwoWay}"
                                      FilterMode="ContainsOrdinal" />
                 </StackPanel>
 
                 <StackPanel Spacing="3">
-                    <TextBlock Text="Sensor path" FontSize="11" Foreground="#999" />
-                    <TextBox Text="{Binding Sensor}" />
+                    <TextBlock Text="Sensor path" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <AutoCompleteBox ItemsSource="{Binding SensorSuggestions}"
+                                     Text="{Binding Sensor, Mode=TwoWay}"
+                                     FilterMode="ContainsOrdinal"
+                                     PlaceholderText="e.g. time, value, elapsed..." />
                 </StackPanel>
 
                 <StackPanel Spacing="3">
-                    <TextBlock Text="Renderer" FontSize="11" Foreground="#999" />
+                    <TextBlock Text="Renderer" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <ComboBox ItemsSource="{Binding RendererTypes}"
                               SelectedItem="{Binding RendererType}"
                               HorizontalAlignment="Stretch" />
                 </StackPanel>
 
+                <!-- Dynamic renderer parameters -->
+                <ItemsControl ItemsSource="{Binding RendererParams}"
+                              IsVisible="{Binding HasRendererParams}">
+                    <ItemsControl.ItemTemplate>
+                        <views:RendererParamTemplateSelector>
+                            <views:RendererParamTemplateSelector.Templates>
+
+                                <DataTemplate x:Key="{x:Static gauges:RendererParamKind.Numeric}"
+                                              x:DataType="vm:RendererParamViewModel">
+                                    <StackPanel Spacing="3" Margin="0,0,0,6">
+                                        <TextBlock Text="{Binding Label}" FontSize="11"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Content="↺"
+                                                    ToolTip.Tip="Reset to default"
+                                                    Padding="6,4" Margin="4,0,0,0"
+                                                    IsVisible="{Binding HasDefault}"
+                                                    Click="OnResetRendererParam" Tag="{Binding}" />
+                                            <TextBox Text="{Binding Value}"
+                                                     PlaceholderText="{Binding Placeholder}" />
+                                        </DockPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+
+                                <DataTemplate x:Key="{x:Static gauges:RendererParamKind.Text}"
+                                              x:DataType="vm:RendererParamViewModel">
+                                    <StackPanel Spacing="3" Margin="0,0,0,6">
+                                        <TextBlock Text="{Binding Label}" FontSize="11"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Content="↺"
+                                                    ToolTip.Tip="Reset to default"
+                                                    Padding="6,4" Margin="4,0,0,0"
+                                                    IsVisible="{Binding HasDefault}"
+                                                    Click="OnResetRendererParam" Tag="{Binding}" />
+                                            <TextBox Text="{Binding Value}"
+                                                     PlaceholderText="{Binding Placeholder}" />
+                                        </DockPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+
+                                <DataTemplate x:Key="{x:Static gauges:RendererParamKind.Boolean}"
+                                              x:DataType="vm:RendererParamViewModel">
+                                    <StackPanel Spacing="3" Margin="0,0,0,6">
+                                        <CheckBox Content="{Binding Label}"
+                                                  IsChecked="{Binding BoolValue}" />
+                                    </StackPanel>
+                                </DataTemplate>
+
+                                <DataTemplate x:Key="{x:Static gauges:RendererParamKind.Bitmap}"
+                                              x:DataType="vm:RendererParamViewModel">
+                                    <StackPanel Spacing="3" Margin="0,0,0,6">
+                                        <TextBlock Text="{Binding Label}" FontSize="11"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Content="Browse..."
+                                                    Padding="8,4" Margin="4,0,0,0"
+                                                    Click="OnBrowseRendererParam"
+                                                    Tag="{Binding}" />
+                                            <TextBox Text="{Binding Value}"
+                                                     PlaceholderText="Path to image file" />
+                                        </DockPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+
+                            </views:RendererParamTemplateSelector.Templates>
+                        </views:RendererParamTemplateSelector>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
                 <StackPanel Spacing="3">
-                    <TextBlock Text="Label" FontSize="11" Foreground="#999" />
+                    <TextBlock Text="Label" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBox Text="{Binding Label}" />
                 </StackPanel>
 
                 <Grid ColumnDefinitions="*,8,*">
                     <StackPanel Grid.Column="0" Spacing="3">
-                        <TextBlock Text="Min" FontSize="11" Foreground="#999" />
+                        <TextBlock Text="Min" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <NumericUpDown Value="{Binding Min}" FormatString="F0" Increment="1" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" Spacing="3">
-                        <TextBlock Text="Max" FontSize="11" Foreground="#999" />
+                        <TextBlock Text="Max" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <NumericUpDown Value="{Binding Max}" FormatString="F0" Increment="1" />
                     </StackPanel>
                 </Grid>
 
                 <StackPanel Spacing="3">
-                    <TextBlock Text="Theme override" FontSize="11" Foreground="#999" />
+                    <TextBlock Text="Theme override" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <TextBox Text="{Binding Theme}" PlaceholderText="(use default)" />
                 </StackPanel>
             </StackPanel>
+            </ScrollViewer>
         </Border>
     </Grid>
 </Window>

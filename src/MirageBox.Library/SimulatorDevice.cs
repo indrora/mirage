@@ -54,6 +54,27 @@ public sealed class SimulatorDevice : IMirageDevice
         _placeholder  = BuildPlaceholder(_imgSize);
     }
 
+
+    public DeviceProfile Profile
+    {
+        get
+        {
+            return new DeviceProfile(
+                "Simulator", 0xDEAD, 0xBEEF,
+                new byte[] { },
+                new byte[] { },
+                0,
+                0,
+                _imgSize,
+                _imgSize,
+                0,
+                _imgSize*_displayButtons,
+                _imgSize,
+                0,
+                DeviceProtocolVariant.AckPrefix);
+        }
+    }
+
     private static byte[] BuildPlaceholder(int size)
     {
         var buf = new byte[size * size * 4];

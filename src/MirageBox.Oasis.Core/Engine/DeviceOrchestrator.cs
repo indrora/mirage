@@ -163,7 +163,7 @@ public class DeviceOrchestrator : IDisposable
             .FirstOrDefault(s => s.Path == gaugeConfig.Sensor);
         var sensorType = sensorInfo?.Type ?? SensorValueType.Numeric;
 
-        renderer ??= _rendererRegistry.Resolve(gaugeConfig.Renderer.Type, sensorType);
+        renderer ??= _rendererRegistry.Resolve(gaugeConfig.Renderer.Type, sensorType, gaugeConfig.Renderer.Parameters);
         if (renderer == null) return null;
 
         var width = _device.ImageWidth;

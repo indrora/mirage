@@ -89,11 +89,78 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel()
     {
+        if (Avalonia.Controls.Design.IsDesignMode)
+        {
+            _configPath = "";
+            var designerDevice = new DesignerDevice();
+            _discoveredDevices[designerDevice.SerialNumber] = designerDevice;
+            _config = CreateDesignTimeConfig(designerDevice);
+            RendererTypes = ["FullRing", "Bar", "Text"];
+            RefreshFromConfig();
+            return;
+        }
+
         _configPath = ConfigLoader.DefaultConfigPath;
         _config = ConfigLoader.Load(_configPath);
         RendererTypes = _rendererRegistry.GetAll().Select(r => r.Name).Order().ToList();
         DiscoverHardware();
         RefreshFromConfig();
+    }
+
+    private static OasisConfig CreateDesignTimeConfig(DesignerDevice device)
+    {
+        var config = new OasisConfig();
+
+        config.Devices["designer"] = new DeviceConfig
+        {
+            Serial = device.SerialNumber,
+            Simulator = false,
+            Buttons = device.ImageButtonCount,
+            Tactile = device.TactileButtonCount,
+            ImageSize = device.ImageWidth,
+        };
+
+        config.DataSources["clock"] = new DataSourceConfig { Plugin = "__builtin:clock" };
+        config.DataSources["counter"] = new DataSourceConfig { Plugin = "__builtin:counter" };
+        config.DataSources["timer"] = new DataSourceConfig { Plugin = "__builtin:timer" };
+
+        config.Gauges["clock"] = new GaugeConfig
+        {
+            Source = "clock", Sensor = "time",
+            Renderer = new RendererConfig { Type = "Text" },
+            Label = "Clock",
+        };
+        config.Gauges["count"] = new GaugeConfig
+        {
+            Source = "counter", Sensor = "value",
+            Renderer = new RendererConfig { Type = "FullRing" },
+            Label = "Counter", Max = 100,
+        };
+        config.Gauges["elapsed"] = new GaugeConfig
+        {
+            Source = "timer", Sensor = "elapsed",
+            Renderer = new RendererConfig { Type = "Bar" },
+            Label = "Timer", Max = 60,
+        };
+
+        config.Scenes["designer"] = new DeviceSceneConfig
+        {
+            ActiveScene = "main",
+            List = new Dictionary<string, SceneConfig>
+            {
+                ["main"] = new SceneConfig
+                {
+                    Buttons = new Dictionary<string, ButtonAssignmentConfig>
+                    {
+                        ["0"] = new ButtonAssignmentConfig { Gauge = "clock" },
+                        ["1"] = new ButtonAssignmentConfig { Gauge = "count" },
+                        ["2"] = new ButtonAssignmentConfig { Gauge = "elapsed" },
+                    }
+                }
+            }
+        };
+
+        return config;
     }
 
     private void DiscoverHardware()
@@ -339,7 +406,7 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     public ManageGaugesViewModel CreateManageGaugesViewModel() =>
-        new(_config.Gauges, DataSourceNames, RendererTypes);
+        new(_config.Gauges, _config.DataSources, DataSourceNames, RendererTypes, _rendererRegistry);
 
     public ManageDataSourcesViewModel CreateManageDataSourcesViewModel() =>
         new(_config.DataSources);

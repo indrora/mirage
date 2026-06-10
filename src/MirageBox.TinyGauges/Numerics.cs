@@ -5,7 +5,11 @@ namespace MirageBox.TinyGauges;
 public static partial class Styles
 {
     [GaugeRenderer("Radial")]
-    public static RenderFunc Radial(float startAngle, float sweepAngle) =>
+    public static RenderFunc Radial(
+        [RendererParam("startAngle", "Arc start angle in degrees", RendererParamKind.Numeric, Default = "135")]
+        float startAngle,
+        [RendererParam("sweepAngle", "Arc sweep angle in degrees", RendererParamKind.Numeric, Default = "270")]
+        float sweepAngle) =>
         (canvas, theme, typeface, bounds, label, value) =>
         {
             canvas.Clear(theme.BackgroundColor);
@@ -51,39 +55,10 @@ public static partial class Styles
             using var hubPaint = new SKPaint { IsAntialias = true, Color = theme.PrimaryColor };
             canvas.DrawCircle(center, MathF.Max(2f, stroke * 0.38f), hubPaint);
 
-            DrawText(canvas, bounds, theme, typeface, label, value);
+            DrawHelpers.DrawText(canvas, bounds, theme, typeface, label, value);
 
 
         };
-
-    private static void DrawText(SKCanvas canvas, SKRect bounds, Theme theme, SKTypeface typeface, string? label, RangedValue value)
-    {
-        string valueText = value.ValueClamped.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-        using var valuePaint = new SKPaint
-        {
-            IsAntialias = true,
-            Color = theme.TextColor,
-            Typeface = typeface,
-            TextSize = MathF.Max(10f, bounds.Height * 0.2f)
-        };
-
-        float textWidth = valuePaint.MeasureText(valueText);
-        canvas.DrawText(valueText, bounds.MidX - textWidth / 2f, bounds.Bottom - bounds.Height * 0.16f, valuePaint);
-
-        if (!string.IsNullOrWhiteSpace(label))
-        {
-            using var labelPaint = new SKPaint
-            {
-                IsAntialias = true,
-                Color = theme.TextColor.WithAlpha(190),
-                Typeface = typeface,
-                TextSize = MathF.Max(8f, bounds.Height * 0.12f)
-            };
-
-            float labelWidth = labelPaint.MeasureText(label);
-            canvas.DrawText(label, bounds.MidX - labelWidth / 2f, bounds.Top + bounds.Height * 0.22f, labelPaint);
-        }
-    }
 
 
     [GaugeRenderer("Bar")]

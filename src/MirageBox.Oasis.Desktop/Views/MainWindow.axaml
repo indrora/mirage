@@ -32,10 +32,10 @@
         </Style>
         
         <Style Selector="Border.slot.pinned">
-            <Setter Property="BorderBrush" Value="#FFB300" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCautionBrush}" />
         </Style>
         <Style Selector="Border.slot.pinned.selected">
-            <Setter Property="BorderBrush" Value="#FFD54F" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorAttentionBrush}" />
         </Style>
         <Style Selector="Border.slot.empty">
             <Setter Property="Opacity" Value="0.5" />
@@ -97,7 +97,7 @@
                             <DataTemplate x:DataType="vm:DeviceViewModel">
                                 <StackPanel Spacing="1">
                                     <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="12" />
-                                    <TextBlock FontSize="10" Foreground="#888">
+                                    <TextBlock FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}">
                                         <Run Text="{Binding Buttons}" /><Run Text=" btn, " />
                                         <Run Text="{Binding Tactile}" /><Run Text=" tac, " />
                                         <Run Text="{Binding Encoders}" /><Run Text=" enc" />
@@ -169,7 +169,7 @@
                                             <StackPanel VerticalAlignment="Center"
                                                         HorizontalAlignment="Center" Spacing="3">
                                                 <TextBlock Text="{Binding HeaderLabel}" FontSize="10"
-                                                           HorizontalAlignment="Center" Foreground="#999" />
+                                                           HorizontalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                 <TextBlock Text="{Binding ContentLabel}" FontSize="12"
                                                            FontWeight="SemiBold"
                                                            HorizontalAlignment="Center"
@@ -200,7 +200,7 @@
                                             <StackPanel VerticalAlignment="Center"
                                                         HorizontalAlignment="Center" Spacing="3">
                                                 <TextBlock Text="{Binding HeaderLabel}" FontSize="10"
-                                                           HorizontalAlignment="Center" Foreground="#999" />
+                                                           HorizontalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                 <TextBlock Text="{Binding ContentLabel}" FontSize="11"
                                                            HorizontalAlignment="Center"
                                                            TextTrimming="CharacterEllipsis"
@@ -230,7 +230,7 @@
                                             <StackPanel VerticalAlignment="Center"
                                                         HorizontalAlignment="Center" Spacing="3">
                                                 <TextBlock Text="{Binding HeaderLabel}" FontSize="10"
-                                                           HorizontalAlignment="Center" Foreground="#999" />
+                                                           HorizontalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                 <TextBlock Text="{Binding ContentLabel}" FontSize="11"
                                                            HorizontalAlignment="Center"
                                                            TextTrimming="CharacterEllipsis"
@@ -250,14 +250,14 @@
             <!-- ════════════════════════════════════════════════ -->
             <!-- RIGHT: Button Properties                         -->
             <!-- ════════════════════════════════════════════════ -->
-            <Border Grid.Column="4" Background="#1E1E1E" Padding="12">
+            <Border Grid.Column="4" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" Padding="12">
                 <ScrollViewer>
                     <StackPanel Spacing="10">
                         <TextBlock Text="Properties" FontWeight="SemiBold" FontSize="14" />
 
                         <TextBlock Text="Select a button to edit"
                                    IsVisible="{Binding !HasSelectedSlot}"
-                                   Foreground="#666" FontStyle="Italic" />
+                                   Foreground="{DynamicResource TextFillColorDisabledBrush}" FontStyle="Italic" />
 
                         <StackPanel Spacing="10" IsVisible="{Binding HasSelectedSlot}">
 
@@ -287,7 +287,7 @@
                             </StackPanel>
 
                             <TextBlock Text="{Binding SelectedSlot.ActionDescription}"
-                                       TextWrapping="Wrap" FontSize="11" Foreground="#888"
+                                       TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                        IsVisible="{Binding SelectedSlot.HasActionParam}" />
 
                             <!-- Data source action -->
@@ -310,10 +310,10 @@
                                                 <StackPanel Spacing="1">
                                                     <TextBlock Text="{Binding Description}" FontSize="12"
                                                                IsVisible="{Binding IsSentinel}"
-                                                               Foreground="#999" />
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"
                                                                IsVisible="{Binding !IsSentinel}" />
-                                                    <TextBlock Text="{Binding Description}" FontSize="11" Foreground="#888"
+                                                    <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                                IsVisible="{Binding !IsSentinel}" />
                                                 </StackPanel>
                                             </DataTemplate>

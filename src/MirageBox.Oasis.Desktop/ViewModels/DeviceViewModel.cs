@@ -43,7 +43,7 @@ public partial class DeviceViewModel : ViewModelBase
         Tactile = device.TactileButtonCount;
         Encoders = device.EncoderCount;
         ImageSize = device.ImageWidth;
-        ProfileName = device is MirageDevice md ? md.Profile.Name : "Unknown";
+        ProfileName = device.Profile.Name;
         HasHardwareProfile = true;
     }
 
