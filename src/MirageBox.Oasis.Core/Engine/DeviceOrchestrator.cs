@@ -11,7 +11,7 @@ public class DeviceOrchestrator : IDisposable
     private readonly IMirageDevice _device;
     private readonly SceneManager _sceneManager;
     private readonly OasisConfig _config;
-    private readonly Dictionary<string, IDataSource> _dataSources;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IDataSource> _dataSources;
     private readonly RendererRegistry _rendererRegistry;
     private readonly ActionExecutor _actionExecutor;
     private readonly Func<string, SKTypeface?> _resolveFont;
@@ -25,7 +25,7 @@ public class DeviceOrchestrator : IDisposable
         IMirageDevice device,
         SceneManager sceneManager,
         OasisConfig config,
-        Dictionary<string, IDataSource> dataSources,
+        System.Collections.Concurrent.ConcurrentDictionary<string, IDataSource> dataSources,
         RendererRegistry rendererRegistry,
         ActionExecutor actionExecutor,
         Func<string, SKTypeface?> resolveFont)
@@ -180,7 +180,11 @@ public class DeviceOrchestrator : IDisposable
         }
         else
         {
-            var rv = new RangedValue(gaugeConfig.Min, gaugeConfig.Max, sensorValue.Numeric ?? 0);
+            var range = (source as IRangedDataSource)?.GetRange(gaugeConfig.Sensor);
+            float min = gaugeConfig.Min ?? range?.Min ?? 0;
+            float max = gaugeConfig.Max ?? range?.Max ?? 100;
+            if (max <= min) { min = 0; max = 100; }
+            var rv = new RangedValue(min, max, sensorValue.Numeric ?? 0);
             renderer(canvas, theme, typeface!, bounds, gaugeConfig.Label, rv);
         }
 

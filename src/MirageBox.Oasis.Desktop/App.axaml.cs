@@ -27,14 +27,8 @@ public partial class App : Application
             desktop.MainWindow = _mainWindow;
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
 
-            desktop.ShutdownRequested += async (_, _) =>
-            {
-                if (_viewModel.IsRunning)
-                    await _viewModel.StopEngineCommand.ExecuteAsync(null);
-            };
-
-            // Auto-start the engine on launch
-            _ = _viewModel.StartEngineCommand.ExecuteAsync(null);
+            // The view model starts the engine itself; just stop it cleanly on exit.
+            desktop.ShutdownRequested += async (_, _) => await _viewModel.ShutdownAsync();
         }
 
         base.OnFrameworkInitializationCompleted();

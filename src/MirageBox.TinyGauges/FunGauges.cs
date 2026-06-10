@@ -81,15 +81,15 @@ public static partial class Styles
             foreach (float f in new[] { 0f, .25f, .5f, .75f, 1f })
             {
                 float ang = 135 + f * 270;
-                var (ox, oy) = DrawHelpers.FunPolar(32, 32, 27, ang);
-                var (ix, iy) = DrawHelpers.FunPolar(32, 32, 23, ang);
+                var (ox, oy) = DrawHelpers.PolartoXY(32, 32, 27, ang);
+                var (ix, iy) = DrawHelpers.PolartoXY(32, 32, 23, ang);
                 DrawHelpers.FunLine(c, ox, oy, ix, iy, theme.SecondaryColor, 1.5f);
             }
 
             DrawHelpers.FunArc(c, new SKRect(8, 8, 56, 56), 135, 270, value.Ratio, 3, DrawHelpers.FunTrack(theme), DrawHelpers.FunInfo(theme));
 
             float na = 135 + value.Ratio * 270;
-            var (nx, ny) = DrawHelpers.FunPolar(32, 32, 22, na);
+            var (nx, ny) = DrawHelpers.PolartoXY(32, 32, 22, na);
             DrawHelpers.FunLine(c, 32, 32, nx, ny, theme.TextColor, 2.5f);
             using (var hub = DrawHelpers.FunFill(theme.TextColor))
                 c.DrawCircle(32, 32, 3, hub);
@@ -124,8 +124,8 @@ public static partial class Styles
             for (int i = 0; i < 12; i++)
             {
                 float ang = -90 + i * 30;
-                var (ox, oy) = DrawHelpers.FunPolar(32, 32, 29, ang);
-                var (ix, iy) = DrawHelpers.FunPolar(32, 32, 22, ang);
+                var (ox, oy) = DrawHelpers.PolartoXY(32, 32, 29, ang);
+                var (ix, iy) = DrawHelpers.PolartoXY(32, 32, 22, ang);
                 SKColor col = i < lit
                     ? (i < 7 ? DrawHelpers.FunOk(theme) : i < 10 ? DrawHelpers.FunWarn(theme) : DrawHelpers.FunCrit(theme))
                     : DrawHelpers.FunTrack(theme);
@@ -168,15 +168,15 @@ public static partial class Styles
             foreach (float f in new[] { 0f, .25f, .5f, .75f, 1f })
             {
                 float ang = 180 + f * 180;
-                var (ox, oy) = DrawHelpers.FunPolar(32, 40, 27, ang);
-                var (ix, iy) = DrawHelpers.FunPolar(32, 40, 22, ang);
+                var (ox, oy) = DrawHelpers.PolartoXY(32, 40, 27, ang);
+                var (ix, iy) = DrawHelpers.PolartoXY(32, 40, 22, ang);
                 DrawHelpers.FunLine(c, ox, oy, ix, iy, theme.SecondaryColor, 1.5f);
             }
 
             DrawHelpers.FunArc(c, oval, 180, 180, value.Ratio, 4, DrawHelpers.FunTrack(theme), DrawHelpers.FunInfo(theme));
 
             float na = 180 + value.Ratio * 180;
-            var (nx, ny) = DrawHelpers.FunPolar(32, 40, 24, na);
+            var (nx, ny) = DrawHelpers.PolartoXY(32, 40, 24, na);
             DrawHelpers.FunLine(c, 32, 40, nx, ny, theme.TextColor, 2);
             using (var hub = DrawHelpers.FunFill(theme.TextColor))
                 c.DrawCircle(32, 40, 3, hub);

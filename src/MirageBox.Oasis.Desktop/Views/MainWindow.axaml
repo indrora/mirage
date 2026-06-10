@@ -55,14 +55,17 @@
         <Border DockPanel.Dock="Bottom" Padding="12,6">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
-                    <Button Content="Start" Command="{Binding StartEngineCommand}"
-                            IsEnabled="{Binding !IsRunning}" />
-                    <Button Content="Stop" Command="{Binding StopEngineCommand}"
-                            IsEnabled="{Binding IsRunning}" />
-                    <Button Content="Restart" Command="{Binding RestartEngineCommand}" />
+                    <Button Content="Save" Command="{Binding SaveConfigCommand}"
+                            ToolTip.Tip="Keep the current state — write it to disk" />
+                    <Button Content="Revert" Command="{Binding RevertConfigCommand}"
+                            ToolTip.Tip="Discard live changes and go back to the version saved on disk" />
                     <Rectangle Width="1" Margin="4,0" />
-                    <Button Content="Save" Command="{Binding SaveConfigCommand}" />
-                    <Button Content="Reload" Command="{Binding ReloadConfigCommand}" />
+                    <Button Content="Export..." Click="OnExportConfig"
+                            ToolTip.Tip="Export the current state as a zip (images included)" />
+                    <Button Content="Import..." Click="OnImportConfig"
+                            ToolTip.Tip="Import a configuration from a zip" />
+                    <Button Content="Reset" Click="OnResetConfig"
+                            ToolTip.Tip="Wipe everything back to a default layout (physical hardware is kept)" />
                     <Rectangle Width="1" Margin="4,0" />
                     <Button Content="Gauges..." Click="OnManageGauges" />
                     <Button Content="Sources..." Click="OnManageDataSources" />

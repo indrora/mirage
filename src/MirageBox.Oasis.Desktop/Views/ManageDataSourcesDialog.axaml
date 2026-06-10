@@ -1,10 +1,12 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:MirageBox.Oasis.Desktop.ViewModels"
+        xmlns:views="using:MirageBox.Oasis.Desktop.Views"
+        xmlns:ds="using:MirageBox.Oasis.Core.DataSources"
         x:Class="MirageBox.Oasis.Desktop.Views.ManageDataSourcesDialog"
         x:DataType="vm:ManageDataSourcesViewModel"
         Title="Manage Data Sources"
-        Width="550" Height="400"
+        Width="640" Height="520"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
 
@@ -23,7 +25,11 @@
                     <DataTemplate x:DataType="vm:DataSourceEntryViewModel">
                         <StackPanel Spacing="1">
                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" />
-                            <TextBlock Text="{Binding Plugin}" FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="{Binding Plugin}" FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                <TextBlock Text="{Binding ElevationMarker}" FontSize="10"
+                                           ToolTip.Tip="Requires administrator for full sensor access" />
+                            </StackPanel>
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -32,6 +38,7 @@
 
         <!-- Source editor -->
         <Border Grid.Column="1" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="14">
+            <ScrollViewer>
             <StackPanel Spacing="10" IsVisible="{Binding HasSelection}">
                 <StackPanel Spacing="3">
                     <TextBlock Text="Name" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -42,9 +49,110 @@
                     <TextBlock Text="Plugin" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <ComboBox x:Name="PluginCombo" HorizontalAlignment="Stretch"
                               ItemsSource="{Binding PluginOptions}"
-                              SelectedItem="{Binding SelectedSource.Plugin}" />
+                              SelectedValue="{Binding SelectedSource.Plugin}"
+                              SelectedValueBinding="{Binding Id, x:DataType=vm:PluginOption}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PluginOption">
+                                <StackPanel Spacing="1">
+                                    <TextBlock Text="{Binding Display}" FontSize="12" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+
+                <TextBlock IsVisible="{Binding SelectedSource.ShowElevationWarning, FallbackValue=False}"
+                           Text="⚠ This source needs administrator rights — most of its sensors will be unavailable."
+                           TextWrapping="Wrap" FontSize="11"
+                           Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+
+                <!-- Source configuration parameters -->
+                <StackPanel Spacing="8" IsVisible="{Binding HasSourceParams}">
+                    <TextBlock Text="Configuration" FontWeight="SemiBold" FontSize="12" Margin="0,6,0,0" />
+                    <ItemsControl ItemsSource="{Binding SourceParams}">
+                        <ItemsControl.ItemTemplate>
+                            <views:SourceParamTemplateSelector>
+                                <views:SourceParamTemplateSelector.Templates>
+
+                                    <DataTemplate x:Key="{x:Static ds:SourceParamKind.Text}"
+                                                  x:DataType="vm:SourceParamViewModel">
+                                        <StackPanel Spacing="3" Margin="0,0,0,6">
+                                            <TextBlock Text="{Binding Label}" FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBox Text="{Binding Value}" PlaceholderText="{Binding Placeholder}" />
+                                            <TextBlock Text="{Binding Description}" FontSize="10" IsVisible="{Binding HasDescription}"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DataTemplate>
+
+                                    <DataTemplate x:Key="{x:Static ds:SourceParamKind.Number}"
+                                                  x:DataType="vm:SourceParamViewModel">
+                                        <StackPanel Spacing="3" Margin="0,0,0,6">
+                                            <TextBlock Text="{Binding Label}" FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBox Text="{Binding Value}" PlaceholderText="{Binding Placeholder}" />
+                                            <TextBlock Text="{Binding Description}" FontSize="10" IsVisible="{Binding HasDescription}"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DataTemplate>
+
+                                    <DataTemplate x:Key="{x:Static ds:SourceParamKind.Boolean}"
+                                                  x:DataType="vm:SourceParamViewModel">
+                                        <StackPanel Spacing="3" Margin="0,0,0,6">
+                                            <CheckBox Content="{Binding Label}" IsChecked="{Binding BoolValue}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+
+                                    <DataTemplate x:Key="{x:Static ds:SourceParamKind.Choice}"
+                                                  x:DataType="vm:SourceParamViewModel">
+                                        <StackPanel Spacing="3" Margin="0,0,0,6">
+                                            <TextBlock Text="{Binding Label}" FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <ComboBox ItemsSource="{Binding Options}"
+                                                      SelectedValue="{Binding Value}"
+                                                      SelectedValueBinding="{Binding Value, x:DataType=ds:SourceParamOption}"
+                                                      HorizontalAlignment="Stretch">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="ds:SourceParamOption">
+                                                        <TextBlock Text="{Binding Label}" FontSize="12" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBlock Text="{Binding Description}" FontSize="10" IsVisible="{Binding HasDescription}"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DataTemplate>
+
+                                    <DataTemplate x:Key="{x:Static ds:SourceParamKind.MultiChoice}"
+                                                  x:DataType="vm:SourceParamViewModel">
+                                        <StackPanel Spacing="3" Margin="0,0,0,6">
+                                            <TextBlock Text="{Binding Label}" FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <ItemsControl ItemsSource="{Binding Choices}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:ChoiceItemViewModel">
+                                                        <CheckBox Content="{Binding Label}" IsChecked="{Binding IsChecked}"
+                                                                  FontSize="12" Margin="0,0,10,2" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock Text="{Binding Description}" FontSize="10" IsVisible="{Binding HasDescription}"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DataTemplate>
+
+                                </views:SourceParamTemplateSelector.Templates>
+                            </views:SourceParamTemplateSelector>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </StackPanel>
+            </ScrollViewer>
         </Border>
     </Grid>
 </Window>

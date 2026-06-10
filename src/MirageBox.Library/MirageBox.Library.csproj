@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="HIDSharp" Version="2.1.0" />
+    <PackageReference Include="HIDSharp" Version="2.6.4" />
     <PackageReference Include="Silk.NET.SDL" Version="2.21.0" />
     <PackageReference Include="SkiaSharp" Version="2.88.8" />
   </ItemGroup>

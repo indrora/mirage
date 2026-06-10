@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using MirageBox.Oasis.Desktop.ViewModels;
 
@@ -16,6 +17,11 @@ public partial class MainWindow : Window
         InitializeComponent();
         AddHandler(DragDrop.DropEvent, OnSlotDrop);
         AddHandler(DragDrop.DragOverEvent, OnSlotDragOver);
+        Closing += async (_, _) =>
+        {
+            if (DataContext is MainWindowViewModel vm)
+                await vm.ShutdownAsync();
+        };
     }
 
     private void OnSlotTapped(object? sender, TappedEventArgs e)
@@ -109,5 +115,44 @@ public partial class MainWindow : Window
         await dialog.ShowDialog(this);
         dialogVm.SaveAll();
         vm.RefreshDataSourceNames();
+        await vm.ApplyDataSourceChangesAsync();
+    }
+
+    private async void OnExportConfig(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        var file = await StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
+        {
+            Title = "Export configuration",
+            SuggestedFileName = "oasis-config.zip",
+            DefaultExtension = "zip",
+            FileTypeChoices = [new Avalonia.Platform.Storage.FilePickerFileType("Zip archive") { Patterns = ["*.zip"] }],
+        });
+        if (file?.TryGetLocalPath() is string path)
+            await vm.ExportConfigAsync(path);
+    }
+
+    private async void OnImportConfig(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        var files = await StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+        {
+            Title = "Import configuration",
+            AllowMultiple = false,
+            FileTypeFilter = [new Avalonia.Platform.Storage.FilePickerFileType("Zip archive") { Patterns = ["*.zip"] }],
+        });
+        if (files.Count == 1 && files[0].TryGetLocalPath() is string path)
+            await vm.ImportConfigAsync(path);
+    }
+
+    private async void OnResetConfig(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        var confirmed = await ConfirmDialog.ShowAsync(this,
+            "Reset configuration?",
+            "This wipes all gauges, data sources, scenes and simulators back to a default layout. " +
+            "Physical hardware is kept. Nothing is written to disk until you Save.");
+        if (confirmed)
+            await vm.ResetConfigCommand.ExecuteAsync(null);
     }
 }

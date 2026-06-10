@@ -42,7 +42,7 @@ public static class DrawHelpers
     public static SKColor FunLevel(Theme t, float fraction) =>
         fraction < 0.25f ? FunCrit(t) : fraction < 0.5f ? FunWarn(t) : FunOk(t);
 
-    public static (float x, float y) FunPolar(float cx, float cy, float r, float deg)
+    public static (float x, float y) PolartoXY(float cx, float cy, float r, float deg)
     {
         float rad = deg * MathF.PI / 180f;
         return (cx + MathF.Cos(rad) * r, cy + MathF.Sin(rad) * r);

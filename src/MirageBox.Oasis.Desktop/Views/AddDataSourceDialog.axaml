@@ -17,15 +17,14 @@
 
         <StackPanel Spacing="4">
             <TextBlock Text="Plugin" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-            <ComboBox x:Name="PluginCombo" SelectedIndex="0" HorizontalAlignment="Stretch"
-                      SelectionChanged="OnPluginSelectionChanged">
-                <ComboBoxItem Content="__builtin:clock" Tag="__builtin:clock" />
-                <ComboBoxItem Content="__builtin:counter" Tag="__builtin:counter" />
-                <ComboBoxItem Content="__builtin:timer" Tag="__builtin:timer" />
-                <ComboBoxItem Content="__builtin:static" Tag="__builtin:static" />
-                <ComboBoxItem Content="Custom plugin..." Tag="custom" />
-            </ComboBox>
+            <ComboBox x:Name="PluginCombo" HorizontalAlignment="Stretch"
+                      SelectionChanged="OnPluginSelectionChanged" />
         </StackPanel>
+
+        <TextBlock x:Name="ElevationWarning" IsVisible="False"
+                   Text="⚠ This source needs administrator rights — most of its sensors will be unavailable."
+                   TextWrapping="Wrap" FontSize="11"
+                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
 
         <StackPanel Spacing="4" x:Name="CustomPluginPanel" IsVisible="False">
             <TextBlock Text="Plugin path / assembly" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />

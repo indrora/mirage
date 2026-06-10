@@ -6,13 +6,24 @@ public record ResolvedButton(string? GaugeName, ActionConfig? Action);
 
 public class SceneManager
 {
-    private readonly DeviceSceneConfig _config;
+    private DeviceSceneConfig _config;
     private string _activeScene;
 
     public SceneManager(DeviceSceneConfig config)
     {
         _config = config;
         _activeScene = config.ActiveScene;
+    }
+
+    /// <summary>
+    /// Hot-swaps the scene configuration. The active scene is kept if it still
+    /// exists in the new config, otherwise falls back to the config's default.
+    /// </summary>
+    public void UpdateConfig(DeviceSceneConfig config)
+    {
+        _config = config;
+        if (!config.List.ContainsKey(_activeScene))
+            _activeScene = config.ActiveScene;
     }
 
     public string ActiveScene => _activeScene;

@@ -8,9 +8,9 @@ namespace MirageBox.Oasis.Core.Engine;
 public class ActionExecutor
 {
     private readonly Func<string, SceneManager?> _getSceneManager;
-    private readonly Dictionary<string, IDataSource> _dataSources;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IDataSource> _dataSources;
 
-    public ActionExecutor(Func<string, SceneManager?> getSceneManager, Dictionary<string, IDataSource> dataSources)
+    public ActionExecutor(Func<string, SceneManager?> getSceneManager, System.Collections.Concurrent.ConcurrentDictionary<string, IDataSource> dataSources)
     {
         _getSceneManager = getSceneManager;
         _dataSources = dataSources;

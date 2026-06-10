@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MirageBox;
@@ -26,14 +27,14 @@ public record SourceActionDef(string Name, string Description, string? ParamName
 
 public partial class MainWindowViewModel : ViewModelBase
 {
-    private OasisConfig _config;
+    private readonly OasisConfig _config;
     private OasisEngine? _engine;
     private CancellationTokenSource? _engineCts;
     private readonly string _configPath;
     private readonly RendererRegistry _rendererRegistry = new();
+    private DispatcherTimer? _applyTimer;
 
-    [ObservableProperty] private string _statusText = "Stopped";
-    [ObservableProperty] private bool _isRunning;
+    [ObservableProperty] private string _statusText = "Starting…";
 
     public ObservableCollection<DeviceViewModel> Devices { get; } = new();
     public ObservableCollection<DataSourceViewModel> DataSources { get; } = new();
@@ -105,6 +106,9 @@ public partial class MainWindowViewModel : ViewModelBase
         RendererTypes = _rendererRegistry.GetAll().Select(r => r.Name).Order().ToList();
         DiscoverHardware();
         RefreshFromConfig();
+
+        // Live-first model: the engine is always running; the UI edits it.
+        _ = StartEngineAsync();
     }
 
     private static OasisConfig CreateDesignTimeConfig(DesignerDevice device)
@@ -209,6 +213,8 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnSelectedDeviceChanged(DeviceViewModel? value)
     {
         RebuildSceneList();
+        RemoveDeviceCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanRemoveSelectedDevice));
     }
 
     partial void OnSelectedSceneChanged(SceneViewModel? value)
@@ -269,6 +275,8 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (e.PropertyName == nameof(ButtonSlotViewModel.ActionSource))
             RebuildSourceActions();
+        if (e.PropertyName != nameof(ButtonSlotViewModel.IsSelected))
+            ScheduleApply();
     }
 
     private void RebuildSceneList()
@@ -406,10 +414,25 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     public ManageGaugesViewModel CreateManageGaugesViewModel() =>
-        new(_config.Gauges, _config.DataSources, DataSourceNames, RendererTypes, _rendererRegistry);
+        new(_config.Gauges, _config.DataSources, DataSourceNames, RendererTypes, _rendererRegistry,
+            name => _engine?.GetDataSource(name));
 
     public ManageDataSourcesViewModel CreateManageDataSourcesViewModel() =>
-        new(_config.DataSources);
+        new(_config.DataSources, name => _engine?.GetDataSource(name));
+
+    /// <summary>Hot-applies edited data source configs to the running engine.</summary>
+    public async Task ApplyDataSourceChangesAsync()
+    {
+        if (_engine == null) return;
+        try
+        {
+            await _engine.ApplyDataSourceChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Data source reload failed: {ex.Message}";
+        }
+    }
 
     public void RefreshGaugeNames()
     {
@@ -461,6 +484,8 @@ public partial class MainWindowViewModel : ViewModelBase
         to.ActionSourceAction = tmpSourceAction;
         to.ActionSourceParam = tmpSourceParam;
         to.IsPinned = tmpPinned;
+
+        ScheduleApply();
     }
 
     [RelayCommand]
@@ -472,6 +497,7 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedDevice.Scenes.Add(scene);
         DeviceScenes.Add(scene);
         SelectedScene = scene;
+        ScheduleApply();
     }
 
     [RelayCommand]
@@ -484,6 +510,7 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedScene = DeviceScenes.Count > 0
             ? DeviceScenes[Math.Min(idx, DeviceScenes.Count - 1)]
             : null;
+        ScheduleApply();
     }
 
     [RelayCommand]
@@ -493,31 +520,33 @@ public partial class MainWindowViewModel : ViewModelBase
         var vm = new DeviceViewModel(name, new DeviceConfig { Simulator = true });
         Devices.Add(vm);
         SelectedDevice = vm;
+        ScheduleApply();
     }
 
-    [RelayCommand]
+    /// <summary>Only simulators can be removed; physical hardware stays (ignore it instead).</summary>
+    public bool CanRemoveSelectedDevice => SelectedDevice is { IsSimulator: true };
+
+    [RelayCommand(CanExecute = nameof(CanRemoveSelectedDevice))]
     private void RemoveDevice()
     {
-        if (SelectedDevice == null) return;
+        if (SelectedDevice is not { IsSimulator: true }) return;
         var idx = Devices.IndexOf(SelectedDevice);
         Devices.Remove(SelectedDevice);
         SelectedDevice = Devices.Count > 0
             ? Devices[Math.Min(idx, Devices.Count - 1)]
             : null;
+        ScheduleApply();
     }
 
-    [RelayCommand]
-    private async Task StartEngine()
+    private async Task StartEngineAsync()
     {
-        if (IsRunning) return;
         try
         {
             SyncConfigFromViewModels();
             _engine = new OasisEngine(_config);
             _engineCts = new CancellationTokenSource();
             await _engine.StartAsync(_engineCts.Token);
-            IsRunning = true;
-            StatusText = $"Running — {_config.Devices.Count} device(s), {_config.Gauges.Count} gauge(s)";
+            UpdateLiveStatus();
         }
         catch (Exception ex)
         {
@@ -525,23 +554,52 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
-    private async Task StopEngine()
+    /// <summary>Stops the engine; called when the application shuts down.</summary>
+    public async Task ShutdownAsync()
     {
-        if (!IsRunning || _engine == null) return;
+        if (_engine == null) return;
         _engineCts?.Cancel();
         await _engine.StopAsync();
         _engine.Dispose();
         _engine = null;
-        IsRunning = false;
-        StatusText = "Stopped";
     }
 
-    [RelayCommand]
-    private async Task RestartEngine()
+    private void UpdateLiveStatus()
+        => StatusText = $"Live — {_config.Devices.Count} device(s), {_config.DataSources.Count} source(s), {_config.Gauges.Count} gauge(s)";
+
+    /// <summary>
+    /// Debounced push of the current UI state into the running engine.
+    /// Every layout edit funnels through here; the UI always reflects "now".
+    /// </summary>
+    public void ScheduleApply()
     {
-        await StopEngine();
-        await StartEngine();
+        if (_engine == null) return;
+        _applyTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        _applyTimer.Tick -= OnApplyTimerTick;
+        _applyTimer.Tick += OnApplyTimerTick;
+        _applyTimer.Stop();
+        _applyTimer.Start();
+    }
+
+    private async void OnApplyTimerTick(object? sender, EventArgs e)
+    {
+        _applyTimer?.Stop();
+        await ApplyNowAsync();
+    }
+
+    private async Task ApplyNowAsync()
+    {
+        if (_engine == null) return;
+        try
+        {
+            SyncConfigFromViewModels();
+            await _engine.ApplyConfigChangesAsync();
+            UpdateLiveStatus();
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Apply failed: {ex.Message}";
+        }
     }
 
     [RelayCommand]
@@ -549,15 +607,87 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         SyncConfigFromViewModels();
         ConfigLoader.Save(_config, _configPath);
-        StatusText = "Config saved";
+        StatusText = "Saved to disk";
     }
 
     [RelayCommand]
-    private void ReloadConfig()
+    private async Task RevertConfig()
     {
-        _config = ConfigLoader.Load(_configPath);
+        ReplaceConfigContents(ConfigLoader.Load(_configPath));
         RefreshFromConfig();
-        StatusText = "Config reloaded";
+        if (_engine != null) await _engine.ApplyConfigChangesAsync();
+        StatusText = "Reverted to saved version";
+    }
+
+    [RelayCommand]
+    private async Task ResetConfig()
+    {
+        var fresh = new OasisConfig();
+        // Physical hardware is never removed — carry it over with a blank layout.
+        foreach (var (name, dev) in _config.Devices.Where(kv => !kv.Value.Simulator))
+        {
+            fresh.Devices[name] = dev;
+            fresh.Scenes[name] = new DeviceSceneConfig
+            {
+                ActiveScene = "main",
+                List = new Dictionary<string, SceneConfig> { ["main"] = new() },
+            };
+        }
+
+        ReplaceConfigContents(fresh);
+        RefreshFromConfig();
+        if (_engine != null) await _engine.ApplyConfigChangesAsync();
+        StatusText = "Reset to default layout (not yet saved)";
+    }
+
+    public async Task ExportConfigAsync(string zipPath)
+    {
+        try
+        {
+            SyncConfigFromViewModels();
+            await Task.Run(() => ConfigArchive.Export(_config, _rendererRegistry, zipPath));
+            StatusText = $"Exported to {Path.GetFileName(zipPath)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Export failed: {ex.Message}";
+        }
+    }
+
+    public async Task ImportConfigAsync(string zipPath)
+    {
+        try
+        {
+            var imported = await Task.Run(() => ConfigArchive.Import(zipPath, _rendererRegistry));
+            ReplaceConfigContents(imported);
+            RefreshFromConfig();
+            if (_engine != null) await _engine.ApplyConfigChangesAsync();
+            StatusText = $"Imported {Path.GetFileName(zipPath)} (not yet saved)";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Import failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Copies another config's contents into the live config object in place,
+    /// preserving the object/dictionary instances the engine holds.
+    /// </summary>
+    private void ReplaceConfigContents(OasisConfig source)
+    {
+        _config.Devices.Clear();
+        foreach (var (k, v) in source.Devices) _config.Devices[k] = v;
+        _config.DataSources.Clear();
+        foreach (var (k, v) in source.DataSources) _config.DataSources[k] = v;
+        _config.Gauges.Clear();
+        foreach (var (k, v) in source.Gauges) _config.Gauges[k] = v;
+        _config.Scenes.Clear();
+        foreach (var (k, v) in source.Scenes) _config.Scenes[k] = v;
+        _config.Themes.Clear();
+        foreach (var (k, v) in source.Themes) _config.Themes[k] = v;
+        _config.Defaults = source.Defaults;
+        _config.ContentDirs = source.ContentDirs;
     }
 
     private void SyncConfigFromViewModels()

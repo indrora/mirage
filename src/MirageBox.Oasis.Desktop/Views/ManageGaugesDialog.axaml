@@ -42,6 +42,10 @@
                                      Text="{Binding Sensor, Mode=TwoWay}"
                                      FilterMode="ContainsOrdinal"
                                      PlaceholderText="e.g. time, value, elapsed..." />
+                    <TextBlock IsVisible="{Binding ShowSensorElevationHint}"
+                               Text="🛡 Needs administrator — value may be empty"
+                               FontSize="11" TextWrapping="Wrap"
+                               Foreground="{DynamicResource SystemFillColorCautionBrush}" />
                 </StackPanel>
 
                 <StackPanel Spacing="3">
@@ -126,16 +130,20 @@
                     <TextBox Text="{Binding Label}" />
                 </StackPanel>
 
-                <Grid ColumnDefinitions="*,8,*">
-                    <StackPanel Grid.Column="0" Spacing="3">
-                        <TextBlock Text="Min" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <NumericUpDown Value="{Binding Min}" FormatString="F0" Increment="1" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="2" Spacing="3">
-                        <TextBlock Text="Max" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <NumericUpDown Value="{Binding Max}" FormatString="F0" Increment="1" />
-                    </StackPanel>
-                </Grid>
+                <StackPanel Spacing="3">
+                    <Grid ColumnDefinitions="*,8,*">
+                        <StackPanel Grid.Column="0" Spacing="3">
+                            <TextBlock Text="Min" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <NumericUpDown Value="{Binding Min}" FormatString="F0" Increment="1" PlaceholderText="auto" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="3">
+                            <TextBlock Text="Max" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <NumericUpDown Value="{Binding Max}" FormatString="F0" Increment="1" PlaceholderText="auto" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="Leave blank to use the sensor's observed range."
+                               FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                </StackPanel>
 
                 <StackPanel Spacing="3">
                     <TextBlock Text="Theme override" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />

@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using MirageBox.Oasis.Desktop.ViewModels;
 
 namespace MirageBox.Oasis.Desktop.Views;
 
@@ -10,13 +11,30 @@ public partial class AddDataSourceDialog : Window
     public AddDataSourceDialog()
     {
         InitializeComponent();
+        PopulatePlugins();
+    }
+
+    private void PopulatePlugins()
+    {
+        foreach (var option in PluginCatalog.All)
+            PluginCombo.Items.Add(new ComboBoxItem { Content = option.Display, Tag = option.Id });
+        PluginCombo.Items.Add(new ComboBoxItem { Content = "Custom plugin...", Tag = "custom" });
+        PluginCombo.SelectedIndex = 0;
     }
 
     private void OnPluginSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (CustomPluginPanel == null) return;
-        if (PluginCombo?.SelectedItem is ComboBoxItem item)
-            CustomPluginPanel.IsVisible = item.Tag as string == "custom";
+        if (PluginCombo?.SelectedItem is not ComboBoxItem item) return;
+
+        var tag = item.Tag as string;
+        CustomPluginPanel.IsVisible = tag == "custom";
+
+        if (ElevationWarning != null)
+        {
+            var option = tag != null && tag != "custom" ? PluginCatalog.Find(tag) : null;
+            ElevationWarning.IsVisible = option is { RequiresElevation: true } && !PluginCatalog.IsElevated;
+        }
     }
 
     private void OnAdd(object? sender, RoutedEventArgs e)

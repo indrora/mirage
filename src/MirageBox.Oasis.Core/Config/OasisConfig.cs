@@ -74,11 +74,13 @@ public class GaugeConfig
     [JsonPropertyName("label")]
     public string? Label { get; set; }
 
+    /// <summary>Gauge minimum; null = use the source-provided range when available.</summary>
     [JsonPropertyName("min")]
-    public float Min { get; set; } = 0;
+    public float? Min { get; set; }
 
+    /// <summary>Gauge maximum; null = use the source-provided range when available.</summary>
     [JsonPropertyName("max")]
-    public float Max { get; set; } = 100;
+    public float? Max { get; set; }
 }
 
 public class RendererConfig

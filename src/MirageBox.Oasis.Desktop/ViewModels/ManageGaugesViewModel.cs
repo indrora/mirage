@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MirageBox.Oasis.Core.Config;
@@ -13,6 +14,13 @@ public partial class ManageGaugesViewModel : ViewModelBase
     private readonly Dictionary<string, GaugeConfig> _gauges;
     private readonly Dictionary<string, DataSourceConfig> _dataSources;
     private readonly RendererRegistry _rendererRegistry;
+    private readonly Func<string, IDataSource?>? _liveSourceResolver;
+    private IReadOnlyList<SensorInfo> _currentSensors = [];
+
+    // Transient-probe results per source name (config can't change while this
+    // modal dialog is open, so the name is a sufficient key).
+    private readonly Dictionary<string, IReadOnlyList<SensorInfo>> _probeCache = new();
+    private int _probeVersion;
 
     public ObservableCollection<string> Names { get; } = new();
     public ObservableCollection<string> DataSourceNames { get; }
@@ -26,9 +34,11 @@ public partial class ManageGaugesViewModel : ViewModelBase
     [ObservableProperty] private string _sensor = "";
     [ObservableProperty] private string _rendererType = "FullRing";
     [ObservableProperty] private string? _label;
-    [ObservableProperty] private float _min;
-    [ObservableProperty] private float _max = 100;
+    [ObservableProperty] private decimal? _min;
+    [ObservableProperty] private decimal? _max;
     [ObservableProperty] private string? _theme;
+
+    [ObservableProperty] private bool _showSensorElevationHint;
 
     public ObservableCollection<RendererParamViewModel> RendererParams { get; } = new();
     public bool HasRendererParams => RendererParams.Count > 0;
@@ -46,11 +56,13 @@ public partial class ManageGaugesViewModel : ViewModelBase
         Dictionary<string, DataSourceConfig> dataSources,
         IEnumerable<string> dataSourceNames,
         List<string> rendererTypes,
-        RendererRegistry rendererRegistry)
+        RendererRegistry rendererRegistry,
+        Func<string, IDataSource?>? liveSourceResolver = null)
     {
         _gauges = gauges;
         _dataSources = dataSources;
         _rendererRegistry = rendererRegistry;
+        _liveSourceResolver = liveSourceResolver;
         DataSourceNames = new ObservableCollection<string>(dataSourceNames);
         RendererTypes = rendererTypes;
         foreach (var name in gauges.Keys)
@@ -73,19 +85,108 @@ public partial class ManageGaugesViewModel : ViewModelBase
         RebuildSensorSuggestions();
     }
 
+    partial void OnSensorChanged(string value)
+    {
+        UpdateSensorElevationHint();
+    }
+
     private void RebuildSensorSuggestions()
     {
         SensorSuggestions.Clear();
+        _currentSensors = [];
+        _probeVersion++;
 
-        if (string.IsNullOrEmpty(Source)) return;
-        if (!_dataSources.TryGetValue(Source, out var dsConfig)) return;
+        if (string.IsNullOrEmpty(Source)) { UpdateSensorElevationHint(); return; }
+        if (!_dataSources.TryGetValue(Source, out var dsConfig)) { UpdateSensorElevationHint(); return; }
+
+        // Prefer the live instance: dynamic sources (e.g. hardware monitors)
+        // only know their sensors at runtime.
+        var live = _liveSourceResolver?.Invoke(Source);
+        if (live != null)
+        {
+            ApplySensors(live.GetAvailableSensors());
+            return;
+        }
 
         var sourceType = PluginLoader.ResolveType(dsConfig.Plugin);
-        if (sourceType == null) return;
+        if (sourceType == null) { UpdateSensorElevationHint(); return; }
 
-        var sensors = SensorAttributeHelper.GetSensorsFromAttributes(sourceType);
+        var fromAttributes = SensorAttributeHelper.GetSensorsFromAttributes(sourceType);
+        if (fromAttributes.Count > 0)
+        {
+            ApplySensors(fromAttributes);
+            return;
+        }
+
+        // Dynamic source that isn't running (newly added, or engine stopped):
+        // probe a transient instance off the UI thread so the list works
+        // without an engine restart.
+        if (_probeCache.TryGetValue(Source, out var cached))
+        {
+            ApplySensors(cached);
+            return;
+        }
+
+        UpdateSensorElevationHint();
+        var name = Source;
+        var version = _probeVersion;
+        var plugin = dsConfig.Plugin;
+        var config = dsConfig.Config?.ToDictionary(
+            kv => kv.Key,
+            object? (kv) => kv.Value.ValueKind == JsonValueKind.String ? kv.Value.GetString() : kv.Value.GetRawText())
+            ?? new Dictionary<string, object?>();
+
+        Task.Run(() => ProbeSensors(plugin, config)).ContinueWith(t =>
+        {
+            if (t.Result is not { } sensors) return;
+            Dispatcher.UIThread.Post(() =>
+            {
+                _probeCache[name] = sensors;
+                if (version == _probeVersion)
+                    ApplySensors(sensors);
+            });
+        });
+    }
+
+    private void ApplySensors(IReadOnlyList<SensorInfo> sensors)
+    {
+        _currentSensors = sensors;
+        SensorSuggestions.Clear();
         foreach (var sensor in sensors)
             SensorSuggestions.Add(sensor.Path);
+        UpdateSensorElevationHint();
+    }
+
+    private static IReadOnlyList<SensorInfo>? ProbeSensors(string plugin, Dictionary<string, object?> config)
+    {
+        IDataSource? source = null;
+        try
+        {
+            source = PluginLoader.Create(plugin);
+            if (source == null) return null;
+            source.InitializeAsync(config).GetAwaiter().GetResult();
+            source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            return source.GetAvailableSensors();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[gauges] Sensor probe of '{plugin}' failed: {ex.Message}");
+            return null;
+        }
+        finally
+        {
+            if (source != null)
+            {
+                try { source.StopAsync().GetAwaiter().GetResult(); } catch { /* best effort */ }
+                source.Dispose();
+            }
+        }
+    }
+
+    private void UpdateSensorElevationHint()
+    {
+        var info = _currentSensors.FirstOrDefault(s => s.Path == Sensor);
+        ShowSensorElevationHint = info is { RequiresElevation: true } && !PluginCatalog.IsElevated;
     }
 
     private void RebuildRendererParams()
@@ -134,8 +235,8 @@ public partial class ManageGaugesViewModel : ViewModelBase
         gc.Sensor = Sensor;
         gc.Renderer.Type = RendererType;
         gc.Label = Label;
-        gc.Min = Min;
-        gc.Max = Max;
+        gc.Min = (float?)Min;
+        gc.Max = (float?)Max;
         gc.Theme = Theme;
 
         SaveRendererParams(gc);
@@ -175,7 +276,7 @@ public partial class ManageGaugesViewModel : ViewModelBase
         if (name == null || !_gauges.TryGetValue(name, out var gc))
         {
             Source = ""; Sensor = ""; RendererType = "FullRing";
-            Label = null; Min = 0; Max = 100; Theme = null;
+            Label = null; Min = null; Max = null; Theme = null;
             RendererParams.Clear();
             SensorSuggestions.Clear();
             OnPropertyChanged(nameof(HasRendererParams));
@@ -190,8 +291,8 @@ public partial class ManageGaugesViewModel : ViewModelBase
         // to pick up the new gauge's param values.
         RebuildRendererParams();
         Label = gc.Label;
-        Min = gc.Min;
-        Max = gc.Max;
+        Min = (decimal?)gc.Min;
+        Max = (decimal?)gc.Max;
         Theme = gc.Theme;
     }
 

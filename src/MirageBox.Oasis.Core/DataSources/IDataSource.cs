@@ -19,6 +19,15 @@ public record SensorInfo(string Path, SensorValueType Type, string Description, 
 
 public record SourceActionInfo(string Name, string Description, string? ParamName = null, string? ParamDefault = null, bool IsDefault = false);
 
+/// <summary>
+/// Optional capability: a data source that can report a display range for a
+/// sensor (e.g. derived from historically observed min/max values).
+/// </summary>
+public interface IRangedDataSource
+{
+    (float Min, float Max)? GetRange(string sensorPath);
+}
+
 public interface IDataSource : IDisposable
 {
     string Name { get; }
