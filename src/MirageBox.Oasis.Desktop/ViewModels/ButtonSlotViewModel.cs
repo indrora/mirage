@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace MirageBox.Oasis.Desktop.ViewModels;
@@ -10,16 +11,61 @@ public partial class ButtonSlotViewModel : ViewModelBase
 
     [ObservableProperty] private bool _isPinned;
     [ObservableProperty] private string? _gaugeName;
-    [ObservableProperty] private string _actionType = "";
-    [ObservableProperty] private string _actionParam = "";
-    [ObservableProperty] private string _actionSource = "";
-    [ObservableProperty] private string _actionSourceAction = "";
-    [ObservableProperty] private string _actionSourceParam = "";
     [ObservableProperty] private bool _isSelected;
 
+    /// <summary>Tile preview image (rendered gauge).</summary>
+    [ObservableProperty] private Bitmap? _preview;
+
+    /// <summary>Small line under the gauge name on tiles, e.g. the source plugin.</summary>
+    [ObservableProperty] private string? _previewSourceLine;
+
+    public SlotActionViewModel Press { get; }
+    public SlotActionViewModel DoublePress { get; }
+    public SlotActionViewModel Hold { get; }
+
+    public ButtonSlotViewModel(int index, string slotType,
+        Func<string, Type?>? sourceTypeResolver = null,
+        System.Collections.ObjectModel.ObservableCollection<string>? sourceNames = null)
+    {
+        Index = index;
+        SlotType = slotType;
+        Press = new SlotActionViewModel(slotType == "encoder" ? "On rotate" : "Single press", sourceTypeResolver) { SourceNames = sourceNames };
+        DoublePress = new SlotActionViewModel("Double press", sourceTypeResolver) { SourceNames = sourceNames };
+        Hold = new SlotActionViewModel("Hold", sourceTypeResolver) { SourceNames = sourceNames };
+
+        Press.PropertyChanged += OnActionChanged;
+        DoublePress.PropertyChanged += OnActionChanged;
+        Hold.PropertyChanged += OnActionChanged;
+    }
+
+    private void OnActionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // Bubble up so the main view model's selected-slot hook (which drives
+        // the live apply) and tile labels see nested action edits.
+        if (e.PropertyName is nameof(SlotActionViewModel.ActionType)
+            or nameof(SlotActionViewModel.ActionParam)
+            or nameof(SlotActionViewModel.ActionSource)
+            or nameof(SlotActionViewModel.ActionSourceAction)
+            or nameof(SlotActionViewModel.ActionSourceParam))
+        {
+            OnPropertyChanged(nameof(ContentLabel));
+            OnPropertyChanged(nameof(IsEmpty));
+        }
+    }
+
     public bool HasDisplay => SlotType == "display";
-    public bool IsEmpty => GaugeName == null && !HasActionParam;
-    public bool IsDataSourceAction => ActionType == "dataSource";
+    public bool HasMultiPress => SlotType != "encoder";
+
+    public bool IsEmpty => GaugeName == null && !Press.HasAction && !DoublePress.HasAction && !Hold.HasAction;
+
+    public string TypeLabel => SlotType switch
+    {
+        "tactile" => "Switch",
+        "encoder" => "Encoder",
+        _ => "Button"
+    };
+
+    public string Title => $"{TypeLabel} {Index}";
 
     public string HeaderLabel
     {
@@ -42,44 +88,9 @@ public partial class ButtonSlotViewModel : ViewModelBase
         {
             if (HasDisplay)
                 return GaugeName ?? "(empty)";
-            if (IsDataSourceAction && !string.IsNullOrEmpty(ActionSource))
-                return $"{ActionSource}.{ActionSourceAction}";
-            return HasActionParam ? ActionType : "(no action)";
+            var summary = Press.Summary;
+            return string.IsNullOrEmpty(summary) ? "(no action)" : summary;
         }
-    }
-
-    public bool HasActionParam => !string.IsNullOrEmpty(ActionType) && ActionType != "(none)";
-    public bool HasActionTextField => HasActionParam && ActionType != "dataSource";
-
-    public string ActionParamLabel => ActionType switch
-    {
-        "switchScene" => "Scene",
-        "launch" => "Application path",
-        "command" => "Command",
-        _ => "Parameter"
-    };
-
-    public string ActionParamPlaceholder => ActionType switch
-    {
-        "switchScene" => "next, prev, or scene name",
-        "launch" => "e.g. taskmgr.exe, /usr/bin/htop",
-        "command" => "shell command to run",
-        _ => ""
-    };
-
-    public string ActionDescription => ActionType switch
-    {
-        "dataSource" => "Sends press events (short, long, encoder) to the target data source.",
-        "switchScene" => "Switches the active scene on this device.",
-        "launch" => "Launches an application.",
-        "command" => "Runs a shell command.",
-        _ => ""
-    };
-
-    public ButtonSlotViewModel(int index, string slotType)
-    {
-        Index = index;
-        SlotType = slotType;
     }
 
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -90,20 +101,6 @@ public partial class ButtonSlotViewModel : ViewModelBase
             base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(HeaderLabel)));
             base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(ContentLabel)));
             base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(IsEmpty)));
-        }
-        if (e.PropertyName == nameof(ActionType))
-        {
-            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(HasActionParam)));
-            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(HasActionTextField)));
-            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(IsDataSourceAction)));
-            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(ActionParamLabel)));
-            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(ActionParamPlaceholder)));
-            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(ActionDescription)));
-            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(ContentLabel)));
-        }
-        if (e.PropertyName is nameof(ActionSource) or nameof(ActionSourceAction))
-        {
-            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(ContentLabel)));
         }
     }
 }

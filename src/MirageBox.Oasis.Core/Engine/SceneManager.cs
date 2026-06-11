@@ -2,7 +2,14 @@ using MirageBox.Oasis.Core.Config;
 
 namespace MirageBox.Oasis.Core.Engine;
 
-public record ResolvedButton(string? GaugeName, ActionConfig? Action);
+public record ResolvedButton(
+    string? GaugeName,
+    ActionConfig? Action,
+    ActionConfig? DoublePressAction = null,
+    ActionConfig? HoldAction = null)
+{
+    public bool HasMultiPressActions => DoublePressAction != null || HoldAction != null;
+}
 
 public class SceneManager
 {
@@ -53,11 +60,11 @@ public class SceneManager
         var key = buttonIndex.ToString();
 
         if (_config.Pinned.TryGetValue(key, out var pinned))
-            return new ResolvedButton(pinned.Gauge, pinned.Action);
+            return new ResolvedButton(pinned.Gauge, pinned.Action, pinned.DoublePressAction, pinned.HoldAction);
 
         if (_config.List.TryGetValue(_activeScene, out var scene)
             && scene.Buttons.TryGetValue(key, out var btn))
-            return new ResolvedButton(btn.Gauge, btn.Action);
+            return new ResolvedButton(btn.Gauge, btn.Action, btn.DoublePressAction, btn.HoldAction);
 
         return null;
     }
@@ -67,7 +74,7 @@ public class SceneManager
         var key = buttonIndex.ToString();
         if (_config.List.TryGetValue(_activeScene, out var scene)
             && scene.TactileButtons?.TryGetValue(key, out var btn) == true)
-            return new ResolvedButton(btn.Gauge, btn.Action);
+            return new ResolvedButton(btn.Gauge, btn.Action, btn.DoublePressAction, btn.HoldAction);
         return null;
     }
 
@@ -76,7 +83,7 @@ public class SceneManager
         var key = encoderIndex.ToString();
         if (_config.List.TryGetValue(_activeScene, out var scene)
             && scene.Encoders?.TryGetValue(key, out var btn) == true)
-            return new ResolvedButton(btn.Gauge, btn.Action);
+            return new ResolvedButton(btn.Gauge, btn.Action, btn.DoublePressAction, btn.HoldAction);
         return null;
     }
 

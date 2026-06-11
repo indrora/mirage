@@ -34,6 +34,28 @@ public class OasisEngine : IDisposable
     public IDataSource? GetDataSource(string name)
         => _dataSources.TryGetValue(name, out var ds) ? ds : null;
 
+    /// <summary>
+    /// Renders a gauge for the editor's tile previews (PNG).
+    /// live: true → current sensor value; false → a static safe value
+    /// (midpoint of the gauge's resolved range).
+    /// </summary>
+    public byte[]? RenderGaugePreview(string gaugeName, int size = 96, bool live = true)
+    {
+        if (!_config.Gauges.TryGetValue(gaugeName, out var gaugeConfig))
+            return null;
+
+        float? valueOverride = null;
+        if (!live)
+        {
+            _dataSources.TryGetValue(gaugeConfig.Source, out var source);
+            var (min, max) = GaugeRenderer.ResolveRange(gaugeConfig, source);
+            valueOverride = min + (max - min) / 2f;
+        }
+
+        return GaugeRenderer.Render(gaugeConfig, _config, _dataSources, _rendererRegistry,
+            ResolveFont, size, size, SkiaSharp.SKEncodedImageFormat.Png, quality: 100, valueOverride);
+    }
+
     public async Task StartAsync(CancellationToken ct = default)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);

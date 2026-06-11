@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -54,27 +55,8 @@ public partial class MainWindowViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(HasSelectedSlot))]
     private ButtonSlotViewModel? _selectedSlot;
 
-    public ObservableCollection<SourceActionDef> SelectedSlotSourceActions { get; } = new();
-    private SourceActionDef? _selectedSlotActionDef;
-    public SourceActionDef? SelectedSlotActionDef
-    {
-        get => _selectedSlotActionDef;
-        set
-        {
-            if (SetProperty(ref _selectedSlotActionDef, value))
-            {
-                OnPropertyChanged(nameof(SelectedSlotActionHasParam));
-                if (value != null && SelectedSlot != null)
-                {
-                    if (value.Name == "")
-                        SelectedSlot.ActionSourceAction = "";
-                    else
-                        SelectedSlot.ActionSourceAction = value.Name;
-                }
-            }
-        }
-    }
-    public bool SelectedSlotActionHasParam => SelectedSlotActionDef?.HasParam ?? false;
+    [ObservableProperty] private bool _livePreviews = true;
+    private DispatcherTimer? _previewTimer;
 
     public ObservableCollection<string> GaugeNames { get; } = new();
     public ObservableCollection<string> DataSourceNames { get; } = new();
@@ -235,48 +217,24 @@ public partial class MainWindowViewModel : ViewModelBase
             newValue.PropertyChanged += OnSlotPropertyChanged;
             newValue.IsSelected = true;
         }
-        RebuildSourceActions();
     }
 
-    private void RebuildSourceActions()
+    /// <summary>Maps a data source config name to its plugin type (for action pickers).</summary>
+    private Type? ResolveSourceType(string sourceName)
     {
-        SelectedSlotSourceActions.Clear();
-        SelectedSlotActionDef = null;
-
-        var sourceName = SelectedSlot?.ActionSource;
-        if (string.IsNullOrEmpty(sourceName)) return;
-
         var ds = DataSources.FirstOrDefault(d => d.Name == sourceName);
-        if (ds == null) return;
-
-        var sourceType = PluginLoader.ResolveType(ds.Plugin);
-        if (sourceType == null) return;
-        var actions = SourceActionHelper.GetActionsFromAttributes(sourceType);
-
-        SelectedSlotSourceActions.Add(SourceActionDef.None);
-
-        var defaultAction = actions.FirstOrDefault(a => a.IsDefault);
-        if (defaultAction != null)
-            SelectedSlotSourceActions.Add(SourceActionDef.DefaultFor(defaultAction));
-
-        foreach (var a in actions)
-            SelectedSlotSourceActions.Add(SourceActionDef.FromInfo(a));
-
-        var currentAction = SelectedSlot?.ActionSourceAction;
-        if (string.IsNullOrEmpty(currentAction))
-            SelectedSlotActionDef = SelectedSlotSourceActions[0]; // None
-        else if (currentAction == "__default__")
-            SelectedSlotActionDef = SelectedSlotSourceActions.FirstOrDefault(a => a.Name == "__default__");
-        else
-            SelectedSlotActionDef = SelectedSlotSourceActions.FirstOrDefault(a => a.Name == currentAction);
+        return ds == null ? null : PluginLoader.ResolveType(ds.Plugin);
     }
 
     private void OnSlotPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(ButtonSlotViewModel.ActionSource))
-            RebuildSourceActions();
-        if (e.PropertyName != nameof(ButtonSlotViewModel.IsSelected))
+        if (e.PropertyName is not (nameof(ButtonSlotViewModel.IsSelected)
+            or nameof(ButtonSlotViewModel.Preview)
+            or nameof(ButtonSlotViewModel.PreviewSourceLine)))
             ScheduleApply();
+
+        if (e.PropertyName == nameof(ButtonSlotViewModel.GaugeName))
+            RefreshPreviews(force: true);
     }
 
     private void RebuildSceneList()
@@ -311,25 +269,13 @@ public partial class MainWindowViewModel : ViewModelBase
             var pinnedBtn = pinnedScene?.Buttons.FirstOrDefault(b => b.ButtonIndex == idx);
             var sceneBtn = activeScene?.Buttons.FirstOrDefault(b => b.ButtonIndex == idx);
 
-            var slot = new ButtonSlotViewModel(i, "display");
-            if (pinnedBtn != null)
+            var slot = new ButtonSlotViewModel(i, "display", ResolveSourceType, DataSourceNames);
+            var btn = pinnedBtn ?? sceneBtn;
+            if (btn != null)
             {
-                slot.IsPinned = true;
-                slot.GaugeName = pinnedBtn.Gauge;
-                slot.ActionType = pinnedBtn.ActionType;
-                slot.ActionParam = pinnedBtn.ActionParam;
-                slot.ActionSource = pinnedBtn.ActionSource;
-                slot.ActionSourceAction = pinnedBtn.ActionSourceAction;
-                slot.ActionSourceParam = pinnedBtn.ActionSourceParam;
-            }
-            else if (sceneBtn != null)
-            {
-                slot.GaugeName = sceneBtn.Gauge;
-                slot.ActionType = sceneBtn.ActionType;
-                slot.ActionParam = sceneBtn.ActionParam;
-                slot.ActionSource = sceneBtn.ActionSource;
-                slot.ActionSourceAction = sceneBtn.ActionSourceAction;
-                slot.ActionSourceParam = sceneBtn.ActionSourceParam;
+                slot.IsPinned = pinnedBtn != null;
+                slot.GaugeName = btn.Gauge;
+                LoadSlotActions(slot, btn);
             }
             DisplaySlots.Add(slot);
         }
@@ -337,36 +283,30 @@ public partial class MainWindowViewModel : ViewModelBase
         for (int i = 0; i < SelectedDevice.Tactile; i++)
         {
             var idx = i.ToString();
-            var slot = new ButtonSlotViewModel(i, "tactile");
+            var slot = new ButtonSlotViewModel(i, "tactile", ResolveSourceType, DataSourceNames);
             var btn = activeScene?.TactileButtons.FirstOrDefault(b => b.ButtonIndex == idx);
-            if (btn != null)
-            {
-                slot.ActionType = btn.ActionType;
-                slot.ActionParam = btn.ActionParam;
-                slot.ActionSource = btn.ActionSource;
-                slot.ActionSourceAction = btn.ActionSourceAction;
-                slot.ActionSourceParam = btn.ActionSourceParam;
-            }
+            if (btn != null) LoadSlotActions(slot, btn);
             TactileSlots.Add(slot);
         }
 
         for (int i = 0; i < SelectedDevice.Encoders; i++)
         {
             var idx = i.ToString();
-            var slot = new ButtonSlotViewModel(i, "encoder");
+            var slot = new ButtonSlotViewModel(i, "encoder", ResolveSourceType, DataSourceNames);
             var btn = activeScene?.Encoders.FirstOrDefault(b => b.ButtonIndex == idx);
-            if (btn != null)
-            {
-                slot.ActionType = btn.ActionType;
-                slot.ActionParam = btn.ActionParam;
-                slot.ActionSource = btn.ActionSource;
-                slot.ActionSourceAction = btn.ActionSourceAction;
-                slot.ActionSourceParam = btn.ActionSourceParam;
-            }
+            if (btn != null) LoadSlotActions(slot, btn);
             EncoderSlots.Add(slot);
         }
 
         _lastFlushedScene = activeScene;
+        RefreshPreviews(force: true);
+    }
+
+    private static void LoadSlotActions(ButtonSlotViewModel slot, DeviceButtonViewModel btn)
+    {
+        slot.Press.LoadConfig(btn.Action);
+        slot.DoublePress.LoadConfig(btn.DoublePressAction);
+        slot.Hold.LoadConfig(btn.HoldAction);
     }
 
     private void FlushSlotsToScene()
@@ -384,9 +324,7 @@ public partial class MainWindowViewModel : ViewModelBase
         foreach (var slot in DisplaySlots)
         {
             if (slot.IsEmpty) continue;
-            var btn = new DeviceButtonViewModel(slot.Index.ToString(), slot.GaugeName,
-                slot.ActionType, slot.ActionParam, slot.ActionSource, slot.ActionSourceAction,
-                slot.ActionSourceParam, slot.IsPinned);
+            var btn = SlotToButton(slot, slot.GaugeName, slot.IsPinned);
 
             if (slot.IsPinned)
                 pinnedScene?.Buttons.Add(btn);
@@ -397,21 +335,19 @@ public partial class MainWindowViewModel : ViewModelBase
         foreach (var slot in TactileSlots)
         {
             if (slot.IsEmpty) continue;
-            _lastFlushedScene.TactileButtons.Add(new DeviceButtonViewModel(
-                slot.Index.ToString(), null,
-                slot.ActionType, slot.ActionParam, slot.ActionSource,
-                slot.ActionSourceAction, slot.ActionSourceParam, false));
+            _lastFlushedScene.TactileButtons.Add(SlotToButton(slot, null, false));
         }
 
         foreach (var slot in EncoderSlots)
         {
             if (slot.IsEmpty) continue;
-            _lastFlushedScene.Encoders.Add(new DeviceButtonViewModel(
-                slot.Index.ToString(), null,
-                slot.ActionType, slot.ActionParam, slot.ActionSource,
-                slot.ActionSourceAction, slot.ActionSourceParam, false));
+            _lastFlushedScene.Encoders.Add(SlotToButton(slot, null, false));
         }
     }
+
+    private static DeviceButtonViewModel SlotToButton(ButtonSlotViewModel slot, string? gauge, bool pinned)
+        => new(slot.Index.ToString(), gauge,
+            slot.Press.ToConfig(), slot.DoublePress.ToConfig(), slot.Hold.ToConfig(), pinned);
 
     public ManageGaugesViewModel CreateManageGaugesViewModel() =>
         new(_config.Gauges, _config.DataSources, DataSourceNames, RendererTypes, _rendererRegistry,
@@ -462,28 +398,22 @@ public partial class MainWindowViewModel : ViewModelBase
         var to = collection[toIndex];
 
         var tmpGauge = from.GaugeName;
-        var tmpAction = from.ActionType;
-        var tmpParam = from.ActionParam;
-        var tmpSource = from.ActionSource;
-        var tmpSourceAction = from.ActionSourceAction;
-        var tmpSourceParam = from.ActionSourceParam;
         var tmpPinned = from.IsPinned;
+        var tmpPress = from.Press.ToConfig();
+        var tmpDouble = from.DoublePress.ToConfig();
+        var tmpHold = from.Hold.ToConfig();
 
         from.GaugeName = to.GaugeName;
-        from.ActionType = to.ActionType;
-        from.ActionParam = to.ActionParam;
-        from.ActionSource = to.ActionSource;
-        from.ActionSourceAction = to.ActionSourceAction;
-        from.ActionSourceParam = to.ActionSourceParam;
         from.IsPinned = to.IsPinned;
+        from.Press.LoadConfig(to.Press.ToConfig());
+        from.DoublePress.LoadConfig(to.DoublePress.ToConfig());
+        from.Hold.LoadConfig(to.Hold.ToConfig());
 
         to.GaugeName = tmpGauge;
-        to.ActionType = tmpAction;
-        to.ActionParam = tmpParam;
-        to.ActionSource = tmpSource;
-        to.ActionSourceAction = tmpSourceAction;
-        to.ActionSourceParam = tmpSourceParam;
         to.IsPinned = tmpPinned;
+        to.Press.LoadConfig(tmpPress);
+        to.DoublePress.LoadConfig(tmpDouble);
+        to.Hold.LoadConfig(tmpHold);
 
         ScheduleApply();
     }
@@ -497,6 +427,31 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedDevice.Scenes.Add(scene);
         DeviceScenes.Add(scene);
         SelectedScene = scene;
+        ScheduleApply();
+    }
+
+    [RelayCommand]
+    private void DupeScene()
+    {
+        if (SelectedDevice == null || SelectedScene == null || SelectedScene.IsPinned) return;
+        FlushSlotsToScene();
+
+        var name = $"{SelectedScene.Name}-copy";
+        var i = 2;
+        while (SelectedDevice.Scenes.Any(s => s.Name == name))
+            name = $"{SelectedScene.Name}-copy{i++}";
+
+        var copy = new SceneViewModel(name, false);
+        foreach (var btn in SelectedScene.Buttons)
+            copy.Buttons.Add(DeviceButtonViewModel.FromConfig(btn.ButtonIndex, btn.ToConfig(), false));
+        foreach (var btn in SelectedScene.TactileButtons)
+            copy.TactileButtons.Add(DeviceButtonViewModel.FromConfig(btn.ButtonIndex, btn.ToConfig(), false));
+        foreach (var btn in SelectedScene.Encoders)
+            copy.Encoders.Add(DeviceButtonViewModel.FromConfig(btn.ButtonIndex, btn.ToConfig(), false));
+
+        SelectedDevice.Scenes.Add(copy);
+        DeviceScenes.Add(copy);
+        SelectedScene = copy;
         ScheduleApply();
     }
 
@@ -547,10 +502,68 @@ public partial class MainWindowViewModel : ViewModelBase
             _engineCts = new CancellationTokenSource();
             await _engine.StartAsync(_engineCts.Token);
             UpdateLiveStatus();
+            SetupPreviewTimer();
+            RefreshPreviews(force: true);
         }
         catch (Exception ex)
         {
             StatusText = $"Error: {ex.Message}";
+        }
+    }
+
+    private void SetupPreviewTimer()
+    {
+        _previewTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background,
+            (_, _) => RefreshPreviews(force: false));
+        if (LivePreviews) _previewTimer.Start();
+    }
+
+    partial void OnLivePreviewsChanged(bool value)
+    {
+        if (value)
+        {
+            _previewTimer?.Start();
+            RefreshPreviews(force: true);
+        }
+        else
+        {
+            _previewTimer?.Stop();
+            RefreshPreviews(force: true);   // one static safe-value render
+        }
+    }
+
+    /// <summary>
+    /// Renders tile previews. Live mode re-renders every tick; static mode
+    /// renders once (force) at a safe mid-range value.
+    /// </summary>
+    private void RefreshPreviews(bool force)
+    {
+        if (_engine == null) return;
+        if (!LivePreviews && !force) return;
+
+        foreach (var slot in DisplaySlots)
+        {
+            if (slot.GaugeName is not { } gaugeName || gaugeName.Length == 0)
+            {
+                slot.Preview = null;
+                slot.PreviewSourceLine = null;
+                continue;
+            }
+
+            try
+            {
+                var png = _engine.RenderGaugePreview(gaugeName, size: 96, live: LivePreviews);
+                slot.Preview = png != null ? new Bitmap(new MemoryStream(png)) : null;
+            }
+            catch
+            {
+                slot.Preview = null;
+            }
+
+            slot.PreviewSourceLine = _config.Gauges.TryGetValue(gaugeName, out var gc)
+                && _config.DataSources.TryGetValue(gc.Source, out var ds)
+                ? ds.Plugin
+                : null;
         }
     }
 

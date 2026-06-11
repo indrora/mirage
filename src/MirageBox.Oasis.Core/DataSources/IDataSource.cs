@@ -13,7 +13,7 @@ public readonly record struct SensorValue(float? Numeric, string? Text)
 
 public enum SensorValueType { Numeric, Text }
 
-public enum ButtonPressType { ShortPress, LongPress, EncoderCW, EncoderCCW }
+public enum ButtonPressType { ShortPress, LongPress, DoublePress, EncoderCW, EncoderCCW }
 
 public record SensorInfo(string Path, SensorValueType Type, string Description, bool RequiresElevation = false);
 

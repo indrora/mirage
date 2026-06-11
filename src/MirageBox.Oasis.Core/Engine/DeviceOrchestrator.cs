@@ -19,6 +19,8 @@ public class DeviceOrchestrator : IDisposable
     private CancellationTokenSource? _renderCts;
     private Task? _renderTask;
     private readonly bool[] _dirty;
+    private readonly ButtonPressClassifier _displayClassifier;
+    private readonly ButtonPressClassifier _tactileClassifier;
 
     public DeviceOrchestrator(
         string deviceName,
@@ -40,6 +42,10 @@ public class DeviceOrchestrator : IDisposable
         _resolveFont = resolveFont;
         _dirty = new bool[device.ImageButtonCount];
         Array.Fill(_dirty, true);
+        _displayClassifier = new ButtonPressClassifier(
+            (idx, kind) => HandleClassifiedPress(_sceneManager.GetButton(idx), kind, markDirty: true));
+        _tactileClassifier = new ButtonPressClassifier(
+            (idx, kind) => HandleClassifiedPress(_sceneManager.GetTactileButton(idx), kind, markDirty: false));
     }
 
     public async Task StartAsync()
@@ -65,36 +71,61 @@ public class DeviceOrchestrator : IDisposable
 
     private void OnImageButtonChanged(object? sender, ImageButtonEventArgs e)
     {
-        if (!e.IsPressed) return;
-        var resolved = _sceneManager.GetButton(e.ButtonIndex);
-        if (resolved == null) return;
-        ExecuteOrDefault(resolved);
-        MarkAllDirty();
+        RouteEdge(_displayClassifier, _sceneManager.GetButton(e.ButtonIndex),
+            e.ButtonIndex, e.IsPressed, markDirty: true);
     }
 
     private void OnTactileButtonChanged(object? sender, TactileButtonEventArgs e)
     {
-        if (!e.IsPressed) return;
-        var resolved = _sceneManager.GetTactileButton(e.ButtonIndex);
-        if (resolved != null)
-            ExecuteOrDefault(resolved);
+        RouteEdge(_tactileClassifier, _sceneManager.GetTactileButton(e.ButtonIndex),
+            e.ButtonIndex, e.IsPressed, markDirty: false);
+    }
+
+    private void RouteEdge(ButtonPressClassifier classifier, ResolvedButton? resolved,
+        int index, bool isPressed, bool markDirty)
+    {
+        if (resolved == null) return;
+
+        // Zero-latency fast path: nothing bound to double/hold, fire on press.
+        if (!resolved.HasMultiPressActions)
+        {
+            if (isPressed)
+                HandleClassifiedPress(resolved, PressKind.Single, markDirty);
+            return;
+        }
+
+        classifier.OnEdge(index, isPressed);
+    }
+
+    private void HandleClassifiedPress(ResolvedButton? resolved, PressKind kind, bool markDirty)
+    {
+        if (resolved == null) return;
+
+        var action = kind switch
+        {
+            PressKind.Double => resolved.DoublePressAction,
+            PressKind.Hold => resolved.HoldAction,
+            _ => resolved.Action,
+        };
+
+        if (action != null)
+            _actionExecutor.Execute(action, _deviceName);
+        else if (kind == PressKind.Single)
+            ExecuteSourceDefault(resolved);
+
+        if (markDirty)
+            MarkAllDirty();
     }
 
     private void OnEncoderRotated(object? sender, EncoderEventArgs e)
     {
         var resolved = _sceneManager.GetEncoder(e.EncoderIndex);
         if (resolved != null)
-            ExecuteOrDefault(resolved);
+            HandleClassifiedPress(resolved, PressKind.Single, markDirty: false);
     }
 
-    private void ExecuteOrDefault(ResolvedButton resolved)
+    private void ExecuteSourceDefault(ResolvedButton resolved)
     {
-        if (resolved.Action != null)
-        {
-            _actionExecutor.Execute(resolved.Action, _deviceName);
-            return;
-        }
-
         if (resolved.GaugeName == null) return;
         if (!_config.Gauges.TryGetValue(resolved.GaugeName, out var gauge)) return;
         if (!_dataSources.TryGetValue(gauge.Source, out var source)) return;
@@ -145,79 +176,14 @@ public class DeviceOrchestrator : IDisposable
     }
 
     private byte[]? RenderGauge(Config.GaugeConfig gaugeConfig)
-    {
-        if (!_dataSources.TryGetValue(gaugeConfig.Source, out var source))
-            return null;
-
-        var sensorValue = source.GetValue(gaugeConfig.Sensor);
-        var theme = ResolveTheme(gaugeConfig.Theme);
-        var typeface = _resolveFont(gaugeConfig.Font ?? _config.Defaults.Font);
-
-        RenderFunc? renderer = null;
-        if (gaugeConfig.Renderer.Type == "__source__")
-        {
-            renderer = source.GetCustomRenderer(gaugeConfig.Sensor);
-        }
-
-        var sensorInfo = source.GetAvailableSensors()
-            .FirstOrDefault(s => s.Path == gaugeConfig.Sensor);
-        var sensorType = sensorInfo?.Type ?? SensorValueType.Numeric;
-
-        renderer ??= _rendererRegistry.Resolve(gaugeConfig.Renderer.Type, sensorType, gaugeConfig.Renderer.Parameters);
-        if (renderer == null) return null;
-
-        var width = _device.ImageWidth;
-        var height = _device.ImageHeight;
-        using var surface = SKSurface.Create(new SKImageInfo(width, height));
-        var canvas = surface.Canvas;
-        var bounds = new SKRect(0, 0, width, height);
-
-        if (sensorType == SensorValueType.Text || sensorValue.IsText)
-        {
-            var textLabel = sensorValue.Text ?? gaugeConfig.Label ?? "";
-            var rv = new RangedValue(0, 1, 0);
-            renderer(canvas, theme, typeface!, bounds, textLabel, rv);
-        }
-        else
-        {
-            var range = (source as IRangedDataSource)?.GetRange(gaugeConfig.Sensor);
-            float min = gaugeConfig.Min ?? range?.Min ?? 0;
-            float max = gaugeConfig.Max ?? range?.Max ?? 100;
-            if (max <= min) { min = 0; max = 100; }
-            var rv = new RangedValue(min, max, sensorValue.Numeric ?? 0);
-            renderer(canvas, theme, typeface!, bounds, gaugeConfig.Label, rv);
-        }
-
-        using var image = surface.Snapshot();
-        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 90);
-        return data.ToArray();
-    }
-
-    private Theme ResolveTheme(string? themeName)
-    {
-        themeName ??= _config.Defaults.Theme;
-        if (!_config.Themes.TryGetValue(themeName, out var tc))
-            return Theme.Default;
-
-        return new Theme
-        {
-            PrimaryColor = ParseColor(tc.Primary) ?? Theme.Default.PrimaryColor,
-            SecondaryColor = ParseColor(tc.Secondary) ?? Theme.Default.SecondaryColor,
-            BackgroundColor = ParseColor(tc.Background) ?? Theme.Default.BackgroundColor,
-            TextColor = ParseColor(tc.Text) ?? Theme.Default.TextColor,
-            Accents = tc.Accents?.Select(a => ParseColor(a) ?? SKColors.White).ToArray()
-                      ?? Theme.Default.Accents,
-        };
-    }
-
-    private static SKColor? ParseColor(string? hex)
-    {
-        if (string.IsNullOrEmpty(hex)) return null;
-        return SKColor.TryParse(hex, out var color) ? color : null;
-    }
+        => GaugeRenderer.Render(gaugeConfig, _config, _dataSources, _rendererRegistry,
+            _resolveFont, _device.ImageWidth, _device.ImageHeight,
+            SKEncodedImageFormat.Jpeg, quality: 90);
 
     public void Dispose()
     {
+        _displayClassifier.Dispose();
+        _tactileClassifier.Dispose();
         _renderCts?.Cancel();
         _renderCts?.Dispose();
         _device.Dispose();

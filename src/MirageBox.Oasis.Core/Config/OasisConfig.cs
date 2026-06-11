@@ -97,8 +97,15 @@ public class ButtonAssignmentConfig
     [JsonPropertyName("gauge")]
     public string? Gauge { get; set; }
 
+    /// <summary>Single-press action (legacy key "action").</summary>
     [JsonPropertyName("action")]
     public ActionConfig? Action { get; set; }
+
+    [JsonPropertyName("doublePressAction")]
+    public ActionConfig? DoublePressAction { get; set; }
+
+    [JsonPropertyName("holdAction")]
+    public ActionConfig? HoldAction { get; set; }
 }
 
 public class ActionConfig

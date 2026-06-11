@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MirageBox.Oasis.Desktop.ViewModels"
+             x:Class="MirageBox.Oasis.Desktop.Views.ActionEditor"
+             x:DataType="vm:SlotActionViewModel">
+
+    <StackPanel Spacing="4">
+        <TextBlock Text="{Binding Label}" Classes="field-label" />
+        <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
+                CornerRadius="4" Padding="8">
+            <StackPanel Spacing="8">
+                <ComboBox ItemsSource="{x:Static vm:MainWindowViewModel.ActionTypes}"
+                          SelectedItem="{Binding ActionType}"
+                          HorizontalAlignment="Stretch" />
+
+                <TextBlock Text="{Binding ActionDescription}"
+                           TextWrapping="Wrap" FontSize="11"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                           IsVisible="{Binding HasAction}" />
+
+                <!-- Data source action -->
+                <StackPanel Spacing="6" IsVisible="{Binding IsDataSourceAction}">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="Target source" Classes="field-label" />
+                        <ComboBox ItemsSource="{Binding SourceNames}"
+                                  SelectedItem="{Binding ActionSource}"
+                                  HorizontalAlignment="Stretch" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="Source action" Classes="field-label" />
+                        <ComboBox ItemsSource="{Binding SourceActions}"
+                                  SelectedItem="{Binding SelectedActionDef}"
+                                  HorizontalAlignment="Stretch">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SourceActionDef">
+                                    <StackPanel Spacing="1">
+                                        <TextBlock Text="{Binding Description}" FontSize="12"
+                                                   IsVisible="{Binding IsSentinel}"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"
+                                                   IsVisible="{Binding !IsSentinel}" />
+                                        <TextBlock Text="{Binding Description}" FontSize="11"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                   IsVisible="{Binding !IsSentinel}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Spacing="3" IsVisible="{Binding SelectedActionHasParam}">
+                        <TextBlock Text="{Binding SelectedActionDef.ParamName, FallbackValue=Parameter}"
+                                   Classes="field-label" />
+                        <TextBox Text="{Binding ActionSourceParam}"
+                                 PlaceholderText="{Binding SelectedActionDef.ParamDefault, FallbackValue=''}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Text param (switchScene, launch, command) -->
+                <StackPanel Spacing="3" IsVisible="{Binding HasActionTextField}">
+                    <TextBlock Text="{Binding ActionParamLabel}" Classes="field-label" />
+                    <TextBox Text="{Binding ActionParam}"
+                             PlaceholderText="{Binding ActionParamPlaceholder}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>
