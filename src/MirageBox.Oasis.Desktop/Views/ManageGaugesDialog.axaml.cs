@@ -12,6 +12,22 @@ public partial class ManageGaugesDialog : Window
         InitializeComponent();
     }
 
+    private async void OnRenameGauge(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ManageGaugesViewModel vm || vm.SelectedName is not { } oldName) return;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+        var dialog = new TextInputDialog
+        {
+            Message = $"Rename gauge '{oldName}'",
+            Text = oldName,
+            PositiveText = "Rename",
+            Validate = vm.ValidateNewName,
+        };
+        var result = await dialog.ShowAsync("GaugeDialogHost");
+        if (result.HasValue && result.Value != oldName)
+            vm.RenameSelected(result.Value);
+    }
+
     private void OnResetRendererParam(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: RendererParamViewModel param })

@@ -3,6 +3,7 @@
         xmlns:vm="using:MirageBox.Oasis.Desktop.ViewModels"
         xmlns:views="using:MirageBox.Oasis.Desktop.Views"
         xmlns:gauges="using:MirageBox.TinyGauges"
+        xmlns:dialogs="using:AvaloniaDialogs.Views"
         x:Class="MirageBox.Oasis.Desktop.Views.ManageGaugesDialog"
         x:DataType="vm:ManageGaugesViewModel"
         Title="Manage Gauges"
@@ -10,6 +11,7 @@
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
 
+    <dialogs:ReactiveDialogHost CloseOnClickAway="True" Identifier="GaugeDialogHost">
     <Grid ColumnDefinitions="200,*" Margin="12">
 
         <!-- Gauge list -->
@@ -17,6 +19,9 @@
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="4" Margin="0,6,0,0">
                 <Button Content="+ Add" Padding="10,4" Command="{Binding AddCommand}" />
                 <Button Content="- Remove" Padding="10,4" Command="{Binding RemoveCommand}" />
+                <Button Content="✎ Rename" Padding="10,4"
+                        IsEnabled="{Binding HasSelection}"
+                        Click="OnRenameGauge" />
             </StackPanel>
             <ListBox ItemsSource="{Binding Names}"
                      SelectedItem="{Binding SelectedName}"
@@ -167,4 +172,5 @@
             </ScrollViewer>
         </Border>
     </Grid>
+    </dialogs:ReactiveDialogHost>
 </Window>

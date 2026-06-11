@@ -80,7 +80,7 @@ public partial class TextInputDialog : BaseDialog<string>
         DataContext = this;
     }
 
-    public override void DoInitialFocus()
+    protected override void DoInitialFocus()
     {
         InputBox.Focus();
         InputBox.SelectAll();

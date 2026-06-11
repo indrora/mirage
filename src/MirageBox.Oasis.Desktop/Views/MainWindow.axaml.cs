@@ -103,8 +103,12 @@ public partial class MainWindow : Window
         var dialogVm = vm.CreateManageGaugesViewModel();
         var dialog = new ManageGaugesDialog { DataContext = dialogVm };
         await dialog.ShowDialog(this);
+        
+        
+        
         dialogVm.SaveAll();
         vm.RefreshGaugeNames();
+        vm.ApplyGaugeRenames(dialogVm.RenamedGauges);
     }
 
     private async void OnManageDataSources(object? sender, RoutedEventArgs e)

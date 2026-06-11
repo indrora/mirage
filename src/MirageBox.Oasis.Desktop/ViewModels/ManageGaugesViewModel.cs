@@ -382,6 +382,33 @@ public partial class ManageGaugesViewModel : ViewModelBase
         SelectedName = name;
     }
 
+    /// <summary>
+    /// Renames applied during this dialog session (old → new, in order), so
+    /// the main view model can retarget scene buttons after the dialog closes.
+    /// </summary>
+    public List<(string Old, string New)> RenamedGauges { get; } = new();
+
+    /// <summary>Returns an error message, or null if the name is usable.</summary>
+    public string? ValidateNewName(string name) =>
+        string.IsNullOrWhiteSpace(name) ? "Name cannot be empty."
+        : name != SelectedName && _gauges.ContainsKey(name) ? $"A gauge named '{name}' already exists."
+        : null;
+
+    public void RenameSelected(string newName)
+    {
+        if (SelectedName is not { } oldName || oldName == newName) return;
+        if (!_gauges.TryGetValue(oldName, out var gc) || _gauges.ContainsKey(newName)) return;
+
+        SaveCurrent(oldName);
+        _gauges.Remove(oldName);
+        _gauges[newName] = gc;
+        RenamedGauges.Add((oldName, newName));
+
+        var idx = Names.IndexOf(oldName);
+        Names[idx] = newName;
+        SelectedName = newName;
+    }
+
     [RelayCommand]
     private void Remove()
     {

@@ -71,7 +71,7 @@
         </Style>
     </Window.Styles>
 
-    <dialogs:ReactiveDialogHost CloseOnClickAway="True">
+    <dialogs:ReactiveDialogHost CloseOnClickAway="True" Identifier="MainHost">
     <DockPanel>
         <!-- ═══════════ Header bar ═══════════ -->
         

@@ -380,6 +380,36 @@ public partial class MainWindowViewModel : ViewModelBase
             GaugeNames.Add(name);
     }
 
+    /// <summary>
+    /// Retargets every scene button and live slot after gauges were renamed in
+    /// the Manage Gauges dialog. Call after <see cref="RefreshGaugeNames"/> so
+    /// slot comboboxes can re-select the new names.
+    /// </summary>
+    public void ApplyGaugeRenames(IReadOnlyList<(string Old, string New)> renames)
+    {
+        if (renames.Count == 0) return;
+
+        foreach (var (oldName, newName) in renames)
+        {
+            foreach (var device in Devices)
+            foreach (var scene in device.Scenes)
+            foreach (var btn in scene.Buttons.Concat(scene.TactileButtons).Concat(scene.Encoders))
+            {
+                if (btn.Gauge == oldName)
+                    btn.Gauge = newName;
+            }
+
+            foreach (var slot in DisplaySlots)
+            {
+                if (slot.GaugeName == oldName)
+                    slot.GaugeName = newName;
+            }
+        }
+
+        ScheduleApply();
+        RefreshPreviews(force: true);
+    }
+
     public void RefreshDataSourceNames()
     {
         DataSourceNames.Clear();
@@ -437,16 +467,56 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task RenameScene()
     {
         if (SelectedDevice == null || SelectedScene == null || SelectedScene.IsPinned) return;
-       
-        TwofoldDialog dialog = new()
+        var device = SelectedDevice;
+        var scene = SelectedScene;
+        var oldName = scene.Name;
+
+        var dialog = new Views.TextInputDialog
         {
-            Message = "Do you want to perform action X?",
-            PositiveText = "Yes",
-            NegativeText = "No"
+            Message = $"Rename scene '{oldName}'",
+            Text = oldName,
+            PositiveText = "Rename",
+            Validate = value =>
+                string.IsNullOrWhiteSpace(value) ? "Name cannot be empty."
+                : value != oldName && device.Scenes.Any(s => s.Name == value) ? $"A scene named '{value}' already exists."
+                : null,
         };
-        if ((await dialog.ShowAsync()).GetValueOrDefault())
+        var result = await dialog.ShowAsync();
+        if (!result.HasValue || result.Value == oldName) return;
+        var newName = result.Value;
+
+        scene.Name = newName;
+        if (device.ActiveScene == oldName)
+            device.ActiveScene = newName;
+
+        // Follow switchScene actions pointing at the old name: both the
+        // persisted button configs and the live slot editors.
+        foreach (var s in device.Scenes)
+        foreach (var btn in s.Buttons.Concat(s.TactileButtons).Concat(s.Encoders))
         {
-            StatusText = "awawawa";
+            RetargetSwitchSceneAction(btn.Action, oldName, newName);
+            RetargetSwitchSceneAction(btn.DoublePressAction, oldName, newName);
+            RetargetSwitchSceneAction(btn.HoldAction, oldName, newName);
+        }
+        foreach (var slot in DisplaySlots.Concat(TactileSlots).Concat(EncoderSlots))
+        foreach (var action in new[] { slot.Press, slot.DoublePress, slot.Hold })
+        {
+            if (action.ActionType == "switchScene" && action.ActionParam == oldName)
+                action.ActionParam = newName;
+        }
+
+        StatusText = $"Renamed scene '{oldName}' to '{newName}'";
+        ScheduleApply();
+    }
+
+    private static void RetargetSwitchSceneAction(ActionConfig? action, string oldName, string newName)
+    {
+        if (action is not { Type: "switchScene", Parameters: { } parameters }) return;
+        if (parameters.TryGetValue("scene", out var el)
+            && el.ValueKind == System.Text.Json.JsonValueKind.String
+            && el.GetString() == oldName)
+        {
+            parameters["scene"] = System.Text.Json.JsonSerializer.SerializeToElement(newName);
         }
     }
     

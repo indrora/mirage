@@ -1,0 +1,55 @@
+{
+  "devices": {
+    "main": { "simulator": true, "buttons": 6, "tactile": 0, "imageSize": 128 }
+  },
+  "dataSources": {
+    "tokyo": {
+      "plugin": "worldclock:zone",
+      "config": { "timezone": "Tokyo Standard Time" }
+    },
+    "wx": {
+      "plugin": "weather:current",
+      "config": { "place": "Albuquerque", "units": "imperial", "updateInterval": 15 }
+    }
+  },
+  "gauges": {
+    "tokyoFace": {
+      "source": "tokyo",
+      "sensor": "face",
+      "renderer": { "type": "__source__" },
+      "label": "Tokyo"
+    },
+    "wxStatus": {
+      "source": "wx",
+      "sensor": "status",
+      "renderer": { "type": "__source__" }
+    },
+    "wxTemp": {
+      "source": "wx",
+      "sensor": "temperature",
+      "renderer": { "type": "FullRing" },
+      "label": "Temp"
+    },
+    "badSourceRenderer": {
+      "source": "tokyo",
+      "sensor": "time",
+      "renderer": { "type": "__source__" },
+      "label": "Bad"
+    }
+  },
+  "scenes": {
+    "main": {
+      "activeScene": "default",
+      "list": {
+        "default": {
+          "buttons": {
+            "0": { "gauge": "tokyoFace" },
+            "1": { "gauge": "wxStatus" },
+            "2": { "gauge": "wxTemp" },
+            "3": { "gauge": "badSourceRenderer" }
+          }
+        }
+      }
+    }
+  }
+}
