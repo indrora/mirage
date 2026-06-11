@@ -1,18 +1,20 @@
-<Window xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:MirageBox.Oasis.Desktop.ViewModels"
         xmlns:views="using:MirageBox.Oasis.Desktop.Views"
         xmlns:gauges="using:MirageBox.TinyGauges"
-        xmlns:dialogs="using:AvaloniaDialogs.Views"
         x:Class="MirageBox.Oasis.Desktop.Views.ManageGaugesDialog"
         x:DataType="vm:ManageGaugesViewModel"
-        Title="Manage Gauges"
-        Width="600" Height="500"
-        WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False">
+        Width="600" Height="500">
 
-    <dialogs:ReactiveDialogHost CloseOnClickAway="True" Identifier="GaugeDialogHost">
-    <Grid ColumnDefinitions="200,*" Margin="12">
+    <DockPanel Margin="12">
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Button DockPanel.Dock="Right" Content="Done" Padding="14,4"
+                    Classes="accent" Click="OnDone" />
+            <TextBlock Text="Manage Gauges" FontWeight="SemiBold" FontSize="16"
+                       VerticalAlignment="Center" />
+        </DockPanel>
+    <Grid ColumnDefinitions="200,*">
 
         <!-- Gauge list -->
         <DockPanel Grid.Column="0" Margin="0,0,8,0">
@@ -172,5 +174,5 @@
             </ScrollViewer>
         </Border>
     </Grid>
-    </dialogs:ReactiveDialogHost>
-</Window>
+    </DockPanel>
+</UserControl>

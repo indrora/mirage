@@ -102,7 +102,7 @@ public partial class MainWindow : Window
         if (DataContext is not MainWindowViewModel vm) return;
         var dialogVm = vm.CreateManageGaugesViewModel();
         var dialog = new ManageGaugesDialog { DataContext = dialogVm };
-        await dialog.ShowDialog(this);
+        await dialog.ShowAsync();
         
         
         
@@ -116,7 +116,7 @@ public partial class MainWindow : Window
         if (DataContext is not MainWindowViewModel vm) return;
         var dialogVm = vm.CreateManageDataSourcesViewModel();
         var dialog = new ManageDataSourcesDialog { DataContext = dialogVm };
-        await dialog.ShowDialog(this);
+        await dialog.ShowAsync();
         dialogVm.SaveAll();
         vm.RefreshDataSourceNames();
         await vm.ApplyDataSourceChangesAsync();

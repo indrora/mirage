@@ -1,21 +1,24 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using AvaloniaDialogs.Views;
 using MirageBox.Oasis.Desktop.ViewModels;
 
 namespace MirageBox.Oasis.Desktop.Views;
 
-public partial class ManageGaugesDialog : Window
+public partial class ManageGaugesDialog : BaseDialog
 {
     public ManageGaugesDialog()
     {
         InitializeComponent();
     }
 
+    private void OnDone(object? sender, RoutedEventArgs e) => Close();
+
     private async void OnRenameGauge(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not ManageGaugesViewModel vm || vm.SelectedName is not { } oldName) return;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+
         var dialog = new TextInputDialog
         {
             Message = $"Rename gauge '{oldName}'",
@@ -23,7 +26,7 @@ public partial class ManageGaugesDialog : Window
             PositiveText = "Rename",
             Validate = vm.ValidateNewName,
         };
-        var result = await dialog.ShowAsync("GaugeDialogHost");
+        var result = await dialog.ShowAsync();
         if (result.HasValue && result.Value != oldName)
             vm.RenameSelected(result.Value);
     }
@@ -37,8 +40,9 @@ public partial class ManageGaugesDialog : Window
     private async void OnBrowseRendererParam(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: RendererParamViewModel param }) return;
+        if (TopLevel.GetTopLevel(this) is not { } topLevel) return;
 
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = param.Description,
             AllowMultiple = false,
