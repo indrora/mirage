@@ -13,6 +13,18 @@ namespace MirageBox.Oasis.Core.Engine;
 /// </summary>
 internal static class GaugeRenderer
 {
+    // Keys already warned about, so the per-frame render loop logs once per gauge.
+    private static readonly HashSet<string> WarnedKeys = new();
+
+    private static void WarnOnce(string key, string message)
+    {
+        lock (WarnedKeys)
+        {
+            if (!WarnedKeys.Add(key)) return;
+        }
+        Console.Error.WriteLine($"[gauge] {key}: {message}");
+    }
+
     /// <param name="valueOverride">
     /// When set, renders this synthetic value instead of querying the data
     /// source (used for static previews). Text gauges fall back to the label.
@@ -40,13 +52,21 @@ internal static class GaugeRenderer
         var theme = ResolveTheme(config, gaugeConfig.Theme);
         var typeface = resolveFont(gaugeConfig.Font ?? config.Defaults.Font);
 
-        RenderFunc? renderer = null;
-        if (gaugeConfig.Renderer.Type == "__source__")
-            renderer = source?.GetCustomRenderer(gaugeConfig.Sensor);
-
         var sensorInfo = source?.GetAvailableSensors()
             .FirstOrDefault(s => s.Path == gaugeConfig.Sensor);
         var sensorType = sensorInfo?.Type ?? SensorValueType.Numeric;
+
+        RenderFunc? renderer = null;
+        if (gaugeConfig.Renderer.Type == SourceRenderer.RendererType)
+        {
+            renderer = source?.GetCustomRenderer(gaugeConfig.Sensor);
+            if (renderer == null)
+            {
+                WarnOnce($"{gaugeConfig.Source}/{gaugeConfig.Sensor}",
+                    "gauge uses __source__ but the source provides no renderer for this sensor; falling back to Text");
+                renderer = rendererRegistry.Resolve("Text", sensorType, null);
+            }
+        }
 
         renderer ??= rendererRegistry.Resolve(gaugeConfig.Renderer.Type, sensorType, gaugeConfig.Renderer.Parameters);
         if (renderer == null) return null;

@@ -83,7 +83,9 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        _configPath = ConfigLoader.DefaultConfigPath;
+        // MIRAGE_CONFIG points the editor at an alternate config (testing/dev).
+        _configPath = Environment.GetEnvironmentVariable("MIRAGE_CONFIG")
+                      ?? ConfigLoader.DefaultConfigPath;
         _config = ConfigLoader.Load(_configPath);
         RendererTypes = _rendererRegistry.GetAll().Select(r => r.Name).Order().ToList();
         DiscoverHardware();
@@ -562,7 +564,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
             slot.PreviewSourceLine = _config.Gauges.TryGetValue(gaugeName, out var gc)
                 && _config.DataSources.TryGetValue(gc.Source, out var ds)
-                ? ds.Plugin
+                ? gc.Renderer.Type == SourceRenderer.RendererType
+                    ? $"{ds.Plugin} · sensor renderer"
+                    : ds.Plugin
                 : null;
         }
     }

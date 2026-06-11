@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Plugin: loaded via reflection from the host's plugins/ directory. -->
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Private=false: the host already ships MirageBox.Oasis.Core; the plugin
+         must bind to the host's copy, not carry its own. -->
+    <ProjectReference Include="..\MirageBox.Oasis.Core\MirageBox.Oasis.Core.csproj">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!-- Drop the plugin and its dependencies into the desktop app's plugins/ dir -->
+  <Target Name="CopyToHostPlugins" AfterTargets="Build">
+    <ItemGroup>
+      <!-- Exclude assemblies the host already ships (Mirage libs and their deps) -->
+      <PluginFiles Include="$(TargetDir)*.dll"
+                   Exclude="$(TargetDir)MirageBox.Oasis.Core.dll;$(TargetDir)MirageBox.Library.dll;$(TargetDir)MirageBox.TinyGauges.dll;$(TargetDir)HidSharp.dll;$(TargetDir)SkiaSharp.dll;$(TargetDir)libSkiaSharp.dll;$(TargetDir)SDL2.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PluginFiles)"
+          DestinationFolder="$(MSBuildThisFileDirectory)..\MirageBox.Oasis.Desktop\bin\$(Configuration)\net10.0\plugins\"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

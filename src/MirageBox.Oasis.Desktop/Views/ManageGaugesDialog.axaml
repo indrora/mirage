@@ -50,9 +50,23 @@
 
                 <StackPanel Spacing="3">
                     <TextBlock Text="Renderer" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                    <ComboBox ItemsSource="{Binding RendererTypes}"
-                              SelectedItem="{Binding RendererType}"
-                              HorizontalAlignment="Stretch" />
+                    <ComboBox ItemsSource="{Binding RendererOptions}"
+                              SelectedItem="{Binding SelectedRenderer}"
+                              HorizontalAlignment="Stretch">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RendererOptionViewModel">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                                    <Border IsVisible="{Binding IsFromSource}"
+                                            Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                            CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
+                                        <TextBlock Text="from sensor" FontSize="10"
+                                                   Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </StackPanel>
 
                 <!-- Dynamic renderer parameters -->

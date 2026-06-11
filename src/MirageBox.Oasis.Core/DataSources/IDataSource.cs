@@ -28,6 +28,15 @@ public interface IRangedDataSource
     (float Min, float Max)? GetRange(string sensorPath);
 }
 
+/// <summary>
+/// Sentinel renderer type for gauges whose RenderFunc is supplied by the data
+/// source itself (see <see cref="IDataSource.GetCustomRenderer"/>).
+/// </summary>
+public static class SourceRenderer
+{
+    public const string RendererType = "__source__";
+}
+
 public interface IDataSource : IDisposable
 {
     string Name { get; }
