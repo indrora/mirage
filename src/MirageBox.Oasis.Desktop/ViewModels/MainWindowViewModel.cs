@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using AvaloniaDialogs.Views;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MirageBox;
@@ -432,6 +433,23 @@ public partial class MainWindowViewModel : ViewModelBase
         ScheduleApply();
     }
 
+    [RelayCommand]
+    private async Task RenameScene()
+    {
+        if (SelectedDevice == null || SelectedScene == null || SelectedScene.IsPinned) return;
+       
+        TwofoldDialog dialog = new()
+        {
+            Message = "Do you want to perform action X?",
+            PositiveText = "Yes",
+            NegativeText = "No"
+        };
+        if ((await dialog.ShowAsync()).GetValueOrDefault())
+        {
+            StatusText = "awawawa";
+        }
+    }
+    
     [RelayCommand]
     private void DupeScene()
     {

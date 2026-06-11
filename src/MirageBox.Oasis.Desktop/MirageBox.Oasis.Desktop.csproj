@@ -24,6 +24,8 @@
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.1" />
 <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.4" />
+    <PackageReference Include="FluentIcons.Avalonia" Version="2.1.328" />
+    <PackageReference Include="AvaloniaDialogs" Version="3.7.1" />
   </ItemGroup>
 
   <ItemGroup>

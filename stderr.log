@@ -1,0 +1,1 @@
+[gauge] tokyo/time: gauge uses __source__ but the source provides no renderer for this sensor; falling back to Text

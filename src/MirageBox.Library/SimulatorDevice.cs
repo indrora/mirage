@@ -167,7 +167,11 @@ public sealed class SimulatorDevice : IMirageDevice
         try
         {
             var pixels = new byte[_imgSize * _imgSize * 4];
-            src.GetPixelSpan().CopyTo(pixels);
+            // GetPixels() instead of GetPixelSpan(): the span overload's
+            // signature differs across SkiaSharp majors, which breaks at
+            // runtime when the host resolves a different SkiaSharp than the
+            // one this assembly was compiled against (e.g. under Avalonia).
+            System.Runtime.InteropServices.Marshal.Copy(src.GetPixels(), pixels, 0, pixels.Length);
             lock (_lock) { _images[idx] = pixels; _dirty[idx] = true; }
         }
         finally

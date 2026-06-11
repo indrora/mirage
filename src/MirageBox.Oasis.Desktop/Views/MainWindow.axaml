@@ -4,12 +4,14 @@
         xmlns:views="using:MirageBox.Oasis.Desktop.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:icx="clr-namespace:FluentIcons.Avalonia.Markup;assembly=FluentIcons.Avalonia"
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
         x:Class="MirageBox.Oasis.Desktop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:CompileBindings="True"
         Title="Oasis — MirageBox Control Surface Manager"
-        Width="1100" Height="700" MinWidth="900" MinHeight="550">
+        Width="1100" Height="700" MinWidth="900" MinHeight="550" xmlns:dialogs="using:AvaloniaDialogs.Views">
+  
 
     <Design.DataContext>
         <vm:MainWindowViewModel/>
@@ -23,19 +25,18 @@
             <Setter Property="Padding" Value="6" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="BorderThickness" Value="2" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
         </Style>
         <Style Selector="Border.slot.selected">
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
-            <Setter Property="Background" Value="{DynamicResource AccentButtonForegroundPressed}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorDark2}" />
         </Style>
         <Style Selector="Border.slot.pinned">
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCautionBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColorDark1}"/>
         </Style>
         <Style Selector="Border.slot.pinned.selected">
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorAttentionBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorDark3}" />
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColorDark1}" />
         </Style>
         <Style Selector="Border.slot.empty">
             <Setter Property="Opacity" Value="0.55" />
@@ -70,88 +71,89 @@
         </Style>
     </Window.Styles>
 
+    <dialogs:ReactiveDialogHost CloseOnClickAway="True">
     <DockPanel>
         <!-- ═══════════ Header bar ═══════════ -->
-        <Border DockPanel.Dock="Top" Padding="12,10">
-            <DockPanel>
-                <!-- Device identity card / selector -->
-                <Border DockPanel.Dock="Left"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="1" CornerRadius="6" Padding="2">
-                    <ComboBox MinWidth="240" Background="Transparent" BorderThickness="0"
-                              ItemsSource="{Binding Devices}"
-                              SelectedItem="{Binding SelectedDevice}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:DeviceViewModel">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="14" />
-                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}">
-                                        <Run Text="{Binding Buttons}" /><Run Text=" buttons, " />
-                                        <Run Text="{Binding Tactile}" /><Run Text=" tactiles, " />
-                                        <Run Text="{Binding Encoders}" /><Run Text=" encoders" />
-                                    </TextBlock>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                </Border>
-
-                <!-- Save + menu -->
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6"
-                            VerticalAlignment="Center">
-                    <Button Content="Save" Command="{Binding SaveConfigCommand}"
-                            ToolTip.Tip="Keep the current state — write it to disk" />
-                    <Button Content="☰">
-                        <Button.Flyout>
-                            <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                <MenuItem Header="Revert to saved" Command="{Binding RevertConfigCommand}" />
-                                <Separator />
-                                <MenuItem Header="Export…" Click="OnExportConfig" />
-                                <MenuItem Header="Import…" Click="OnImportConfig" />
-                                <MenuItem Header="Reset to defaults…" Click="OnResetConfig" />
-                                <Separator />
-                                <MenuItem Header="Manage gauges…" Click="OnManageGauges" />
-                                <MenuItem Header="Manage data sources…" Click="OnManageDataSources" />
-                                <Separator />
-                                <MenuItem Header="Live previews" ToggleType="CheckBox"
-                                          IsChecked="{Binding LivePreviews}" />
-                                <Separator />
-                                <MenuItem Header="Add simulator" Command="{Binding AddDeviceCommand}" />
-                                <MenuItem Header="Remove simulator" Command="{Binding RemoveDeviceCommand}" />
-                            </MenuFlyout>
-                        </Button.Flyout>
-                    </Button>
-                </StackPanel>
-
-                <!-- Scene tabs -->
-                <StackPanel Orientation="Horizontal" Spacing="8" Margin="16,0"
-                            VerticalAlignment="Center">
-                    <ListBox Classes="scene-tabs" ItemsSource="{Binding DeviceScenes}"
-                             SelectedItem="{Binding SelectedScene}"
-                             Background="Transparent">
-                        <ListBox.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ListBox.ItemsPanel>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:SceneViewModel">
-                                <TextBlock Text="{Binding Name}" FontSize="15" />
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                    <StackPanel Orientation="Vertical" Spacing="0" VerticalAlignment="Center">
-                        <Button Content="+ new" FontSize="11" Padding="6,1" Background="Transparent"
-                                Command="{Binding AddSceneCommand}" />
-                        <Button Content="− delete" FontSize="11" Padding="6,1" Background="Transparent"
-                                Command="{Binding RemoveSceneCommand}" />
-                        <Button Content="⧉ dupe" FontSize="11" Padding="6,1" Background="Transparent"
-                                Command="{Binding DupeSceneCommand}" />
-                    </StackPanel>
-                </StackPanel>
-            </DockPanel>
-        </Border>
-
+        
+        <CommandBar DockPanel.Dock="Top">
+            <CommandBar.Content>
+            <StackPanel FlowDirection="LeftToRight" Orientation="Horizontal">
+                <ComboBox MinWidth="240" Background="Transparent" BorderThickness="0"
+                          ItemsSource="{Binding Devices}"
+                          SelectedItem="{Binding SelectedDevice}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DeviceViewModel">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="14" />
+                                <TextBlock FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}">
+                                    <Run Text="{Binding Buttons}" /><Run Text=" buttons, " />
+                                    <Run Text="{Binding Tactile}" /><Run Text=" tactiles, " />
+                                    <Run Text="{Binding Encoders}" /><Run Text=" encoders" />
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <CommandBarSeparator />
+                <TabStrip
+                    ItemsSource="{Binding DeviceScenes}"
+                    SelectedItem="{Binding SelectedScene}"
+                    >
+                    <TabStrip.DataTemplates>
+                        <DataTemplate x:DataType="vm:SceneViewModel">
+                            <TabStripItem Content="{Binding Name}" />
+                        </DataTemplate>
+                    </TabStrip.DataTemplates>
+                </TabStrip>
+            </StackPanel>
+            </CommandBar.Content>
+            <CommandBar.PrimaryCommands>
+                <CommandBarButton 
+                    Label="Scenes"
+                    Icon="{icx:FluentIcon Icon=Group }">
+                    <CommandBarButton.Flyout>
+                        <MenuFlyout>
+                            <MenuItem Header="Add" Icon="{icx:FluentIcon AddSquare}"
+                                      
+                                      Command="{Binding AddSceneCommand}"/>
+                            <MenuItem
+                                Header="Delete" Icon="{icx:FluentIcon SquareEraser}" Command="{Binding RemoveSceneCommand}" />
+                                <MenuItem 
+                                    Icon="{icx:FluentIcon Icon=CopySelect}"
+                                    Header="Duplicate"  Command="{Binding DupeSceneCommand}" />
+                                <MenuItem 
+                                    Icon="{icx:FluentIcon Icon=Rename}" 
+                                    Header="Rename"  Command="{Binding RenameSceneCommand}" />
+                        </MenuFlyout>
+                    </CommandBarButton.Flyout>
+                </CommandBarButton>
+                <CommandBarSeparator />
+                <CommandBarButton Label="Save" Icon="{icx:FluentIcon Icon=Save}" />
+            </CommandBar.PrimaryCommands>
+            <CommandBar.SecondaryCommands>
+                <CommandBarButton Command="{Binding RevertConfigCommand}"
+                                  Icon="{icx:FluentIcon ArrowUndo}" Label="Revert to saved" />
+                <CommandBarSeparator />
+                <CommandBarButton Click="OnExportConfig"
+                                  Icon="{icx:FluentIcon ArrowExport}" Label="Export Configuration" />
+                <CommandBarButton Click="OnImportConfig"  
+                                  Icon="{icx:FluentIcon ArrowImport}" Label="Import Configuration" />
+                <CommandBarButton  Click="OnResetConfig"
+                                   Icon="{icx:FluentIcon ArrowReset}" Label="Reset to defaults" />
+                <CommandBarSeparator />
+                <CommandBarButton Click="OnManageGauges" 
+                                  Icon="{icx:FluentIcon Gauge}" Label="Gauges" />
+                <CommandBarButton Click="OnManageDataSources"
+                                  Icon="{icx:FluentIcon GlobeSync}" Label="Sources" />
+                <CommandBarToggleButton Icon="{icx:FluentIcon Live}" Label="Live preview" IsChecked="{Binding LivePreviews}"/>
+                <CommandBarSeparator />
+                <CommandBarButton  Command="{Binding AddDeviceCommand}"
+                                   Icon="{icx:FluentIcon AddSquare}" Label="Add Simulator" />
+                <CommandBarButton Command="{Binding RemoveDeviceCommand}"
+                                  Icon="{icx:FluentIcon SquareEraser}" Label="Remove simulator" />
+            </CommandBar.SecondaryCommands>
+        </CommandBar>
+        
         <!-- ═══════════ Status strip ═══════════ -->
         <Border DockPanel.Dock="Bottom" Padding="12,4">
             <TextBlock Text="{Binding StatusText}" FontSize="11"
@@ -214,15 +216,15 @@
                                         <StackPanel Orientation="Horizontal" Spacing="12">
                                             <!-- keycap-press glyph (placeholder, theme-aware) -->
                                             <Canvas Width="28" Height="28">
-                                                <Ellipse Canvas.Left="3" Canvas.Top="6" Width="22" Height="18"
-                                                         Stroke="{DynamicResource TextFillColorPrimaryBrush}"
+                                                <Ellipse Canvas.Left="3" Canvas.Top="6" Width="22" Height="22"
+                                                         Stroke="{DynamicResource SystemControlBackgroundBaseLowBrush}"
                                                          StrokeThickness="2" />
-                                                <Ellipse Canvas.Left="7" Canvas.Top="10" Width="14" Height="10"
-                                                         Fill="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                <Ellipse Canvas.Left="7" Canvas.Top="10" Width="14" Height="14"
+                                                         Fill="{DynamicResource SystemControlBackgroundBaseMediumBrush}" />
                                             </Canvas>
                                             <StackPanel VerticalAlignment="Center" Spacing="1">
                                                 <TextBlock Text="{Binding HeaderLabel}" FontSize="10"
-                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                           Foreground="{DynamicResource ButtonForegroundThemeBrush}" />
                                                 <TextBlock Text="{Binding ContentLabel}" FontSize="14" />
                                             </StackPanel>
                                         </StackPanel>
@@ -250,7 +252,7 @@
                                             </Canvas>
                                             <StackPanel VerticalAlignment="Center" Spacing="1">
                                                 <TextBlock Text="{Binding HeaderLabel}" FontSize="10"
-                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                           Foreground="{DynamicResource ButtonForegroundThemeBrush}" />
                                                 <TextBlock Text="{Binding ContentLabel}" FontSize="14" />
                                             </StackPanel>
                                         </StackPanel>
@@ -303,6 +305,10 @@
                     </StackPanel>
                 </ScrollViewer>
             </Border>
+            
         </Grid>
+        
+
     </DockPanel>
+        </dialogs:ReactiveDialogHost >
 </Window>

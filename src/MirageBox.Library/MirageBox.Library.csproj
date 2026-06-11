@@ -13,7 +13,7 @@
   <ItemGroup>
     <PackageReference Include="HIDSharp" Version="2.6.4" />
     <PackageReference Include="Silk.NET.SDL" Version="2.21.0" />
-    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
   </ItemGroup>
 
 </Project>
