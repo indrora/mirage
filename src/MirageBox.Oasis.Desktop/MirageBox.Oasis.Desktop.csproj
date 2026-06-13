@@ -6,6 +6,27 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Embedded Win32 icon resource; shows in Explorer/taskbar on Windows. -->
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!--
+    macOS .app bundle metadata, consumed by the Dotnet.Bundle package below.
+    Produce a bundle with:
+      dotnet msbuild -t:BundleApp -p:RuntimeIdentifier=osx-arm64 -p:Configuration=Release
+    CFBundleIconFile must be a bare filename (it is written verbatim into
+    Info.plist), so icon.icns lives at the project root, not under Assets/.
+  -->
+  <PropertyGroup>
+    <CFBundleName>Oasis</CFBundleName>
+    <CFBundleDisplayName>Oasis</CFBundleDisplayName>
+    <CFBundleIdentifier>io.github.indrora.mirage.oasis</CFBundleIdentifier>
+    <CFBundleVersion>0.1.0</CFBundleVersion>
+    <CFBundleShortVersionString>0.1.0</CFBundleShortVersionString>
+    <CFBundlePackageType>APPL</CFBundlePackageType>
+    <CFBundleExecutable>MirageBox.Oasis.Desktop</CFBundleExecutable>
+    <CFBundleIconFile>icon.icns</CFBundleIconFile>
+    <NSHighResolutionCapable>true</NSHighResolutionCapable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,6 +47,7 @@
 <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.4" />
     <PackageReference Include="FluentIcons.Avalonia" Version="2.1.328" />
     <PackageReference Include="AvaloniaDialogs" Version="3.7.1" />
+    <PackageReference Include="Dotnet.Bundle" Version="0.9.13" />
   </ItemGroup>
 
   <ItemGroup>

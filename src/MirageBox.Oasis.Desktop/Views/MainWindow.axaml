@@ -9,6 +9,7 @@
         x:Class="MirageBox.Oasis.Desktop.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:CompileBindings="True"
+        Icon="/Assets/icon.png"
         Title="Oasis — MirageBox Control Surface Manager"
         Width="1100" Height="700" MinWidth="900" MinHeight="550" xmlns:dialogs="using:AvaloniaDialogs.Views">
   
