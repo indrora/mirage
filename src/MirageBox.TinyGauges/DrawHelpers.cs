@@ -6,30 +6,22 @@ public static class DrawHelpers
 {
     public static void DrawText(SKCanvas canvas, SKRect bounds, Theme theme, SKTypeface typeface, string? label, RangedValue value)
     {
+        // SkiaSharp 3.x split text state off SKPaint: font (typeface + size) now
+        // lives on SKFont, while SKPaint keeps only color/antialias. DrawText takes
+        // an explicit SKTextAlign, so we anchor at bounds.MidX with Center alignment
+        // instead of measuring the string and offsetting by half its width.
         string valueText = value.ValueClamped.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-        using var valuePaint = new SKPaint
-        {
-            IsAntialias = true,
-            Color = theme.TextColor,
-            Typeface = typeface,
-            TextSize = MathF.Max(10f, bounds.Height * 0.2f)
-        };
+        using var valuePaint = new SKPaint { IsAntialias = true, Color = theme.TextColor };
+        using var valueFont = new SKFont { Typeface = typeface ?? SKTypeface.Default, Size = MathF.Max(10f, bounds.Height * 0.2f) };
 
-        float textWidth = valuePaint.MeasureText(valueText);
-        canvas.DrawText(valueText, bounds.MidX - textWidth / 2f, bounds.Bottom - bounds.Height * 0.16f, valuePaint);
+        canvas.DrawText(valueText, bounds.MidX, bounds.Bottom - bounds.Height * 0.16f, SKTextAlign.Center, valueFont, valuePaint);
 
         if (!string.IsNullOrWhiteSpace(label))
         {
-            using var labelPaint = new SKPaint
-            {
-                IsAntialias = true,
-                Color = theme.TextColor.WithAlpha(190),
-                Typeface = typeface,
-                TextSize = MathF.Max(8f, bounds.Height * 0.12f)
-            };
+            using var labelPaint = new SKPaint { IsAntialias = true, Color = theme.TextColor.WithAlpha(190) };
+            using var labelFont = new SKFont { Typeface = typeface ?? SKTypeface.Default, Size = MathF.Max(8f, bounds.Height * 0.12f) };
 
-            float labelWidth = labelPaint.MeasureText(label);
-            canvas.DrawText(label, bounds.MidX - labelWidth / 2f, bounds.Top + bounds.Height * 0.22f, labelPaint);
+            canvas.DrawText(label, bounds.MidX, bounds.Top + bounds.Height * 0.22f, SKTextAlign.Center, labelFont, labelPaint);
         }
     }
 
@@ -70,14 +62,16 @@ public static class DrawHelpers
 
     public static void FunTextCentered(SKCanvas c, string text, float cx, float cy, float size, SKColor color, SKTypeface? tf)
     {
-        using var p = new SKPaint { IsAntialias = true, Color = color, Typeface = tf, TextSize = size, TextAlign = SKTextAlign.Center };
-        c.DrawText(text, cx, cy, p);
+        using var p = new SKPaint { IsAntialias = true, Color = color };
+        using var font = new SKFont { Typeface = tf ?? SKTypeface.Default, Size = size };
+        c.DrawText(text, cx, cy, SKTextAlign.Center, font, p);
     }
 
     public static void FunText(SKCanvas c, string text, float cx, float cy, float size, SKColor color, SKTypeface? tf, SKTextAlign align = SKTextAlign.Center)
     {
-        using var p = new SKPaint { IsAntialias = true, Color = color, Typeface = tf, TextSize = size, TextAlign = align };
-        c.DrawText(text, cx, cy, p);
+        using var p = new SKPaint { IsAntialias = true, Color = color };
+        using var font = new SKFont { Typeface = tf ?? SKTypeface.Default, Size = size };
+        c.DrawText(text, cx, cy, align, font, p);
     }
 
     public static void FunRect(SKCanvas c, float x, float y, float w, float h, float radius, SKColor color)

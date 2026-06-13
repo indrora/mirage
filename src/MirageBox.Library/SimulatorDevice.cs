@@ -151,7 +151,9 @@ public sealed class SimulatorDevice : IMirageDevice
         bool disposeSrc = false;
         if (bmp.Width != _imgSize || bmp.Height != _imgSize)
         {
-            src = bmp.Resize(new SKImageInfo(_imgSize, _imgSize), SKFilterQuality.Medium);
+            // SKFilterQuality is obsolete in SkiaSharp 3.x; Medium maps to a
+            // linear filter with linear mipmapping under SKSamplingOptions.
+            src = bmp.Resize(new SKImageInfo(_imgSize, _imgSize), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
             disposeSrc = true;
         }
         else if (bmp.ColorType != SKColorType.Rgba8888)

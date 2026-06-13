@@ -134,29 +134,19 @@ public static partial class Styles
         };
         canvas.DrawRoundRect(bounds.Left + 2, bounds.Top + 2, bounds.Width - 4, bounds.Height - 4, 8, 8, boxPaint);
 
+        // SkiaSharp 3.x: font state (typeface/size) is on SKFont; DrawText takes the
+        // alignment directly, so Center at bounds.MidX replaces the manual width offset.
         string valueText = value.ValueClamped.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-        using var valuePaint = new SKPaint
-        {
-            IsAntialias = true,
-            Color = theme.PrimaryColor,
-            Typeface = typeface,
-            TextSize = MathF.Max(12f, bounds.Height * 0.42f)
-        };
+        using var valuePaint = new SKPaint { IsAntialias = true, Color = theme.PrimaryColor };
+        using var valueFont = new SKFont { Typeface = typeface ?? SKTypeface.Default, Size = MathF.Max(12f, bounds.Height * 0.42f) };
 
-        float textWidth = valuePaint.MeasureText(valueText);
-        canvas.DrawText(valueText, bounds.MidX - textWidth / 2f, bounds.MidY + bounds.Height * 0.15f, valuePaint);
+        canvas.DrawText(valueText, bounds.MidX, bounds.MidY + bounds.Height * 0.15f, SKTextAlign.Center, valueFont, valuePaint);
 
         if (!string.IsNullOrWhiteSpace(label))
         {
-            using var labelPaint = new SKPaint
-            {
-                IsAntialias = true,
-                Color = theme.TextColor.WithAlpha(200),
-                Typeface = typeface,
-                TextSize = MathF.Max(7f, bounds.Height * 0.14f)
-            };
-            float labelWidth = labelPaint.MeasureText(label);
-            canvas.DrawText(label, bounds.MidX - labelWidth / 2f, bounds.Top + bounds.Height * 0.2f, labelPaint);
+            using var labelPaint = new SKPaint { IsAntialias = true, Color = theme.TextColor.WithAlpha(200) };
+            using var labelFont = new SKFont { Typeface = typeface ?? SKTypeface.Default, Size = MathF.Max(7f, bounds.Height * 0.14f) };
+            canvas.DrawText(label, bounds.MidX, bounds.Top + bounds.Height * 0.2f, SKTextAlign.Center, labelFont, labelPaint);
         }
     };
 

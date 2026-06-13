@@ -1,5 +1,6 @@
 using SkiaSharp;
 using System.Globalization;
+using MirageBox.TinyGauges;
 
 namespace MirageBox.Oasis;
 
@@ -125,27 +126,10 @@ public sealed class GaugePanelComponent
         string panelText = PanelNumber.ToString(CultureInfo.InvariantCulture);
         string valueText = Value.ToString(CultureInfo.InvariantCulture);
 
-        using var panelPaint = new SKPaint
-        {
-            Color = new SKColor(255, 255, 255, 220),
-            IsAntialias = true,
-            Typeface = Typeface,
-            TextSize = 11f
-        };
-
-        using var valuePaint = new SKPaint
-        {
-            Color = new SKColor(255, 255, 255, 245),
-            IsAntialias = true,
-            Typeface = Typeface,
-            TextSize = 13f
-        };
-
-        canvas.DrawText($"P{panelText}", 4f, 11f, panelPaint);
-        float valueWidth = valuePaint.MeasureText(valueText);
-        float valueX = (ImageSize - valueWidth) / 2f;
-        float valueY = 61f;
-        canvas.DrawText(valueText, valueX, valueY, valuePaint);
+        // All text rendering goes through DrawHelpers.FunText, which owns the
+        // SkiaSharp 3.x SKFont/SKPaint split and the alignment handling.
+        DrawHelpers.FunText(canvas, $"P{panelText}", 4f, 11f, 11f, new SKColor(255, 255, 255, 220), Typeface, SKTextAlign.Left);
+        DrawHelpers.FunText(canvas, valueText, ImageSize / 2f, 61f, 13f, new SKColor(255, 255, 255, 245), Typeface, SKTextAlign.Center);
 
         if (!RotateClockwise90)
         {
