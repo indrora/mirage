@@ -5,7 +5,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Reflection bindings, not compiled. The Avalonia previewer / XAML language server
+         (avaloniateam.vscode-avalonia) validates compiled bindings without running the
+         CommunityToolkit.Mvvm source generator, so every binding to a generated
+         [ObservableProperty]/[RelayCommand] member is falsely flagged "cannot resolve"
+         and the previewer pauses with "XAML Invalid" (AvaloniaPro issue #57). The build
+         itself is fine — this is purely a tooling limitation. x:DataType is kept on the
+         views as a type hint; flip this back to true once the previewer resolves
+         generated members. -->
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
     <!-- Embedded Win32 icon resource; shows in Explorer/taskbar on Windows. -->
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
