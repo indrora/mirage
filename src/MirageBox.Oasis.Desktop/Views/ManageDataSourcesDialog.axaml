@@ -5,6 +5,7 @@
         xmlns:ds="using:MirageBox.Oasis.Core.DataSources"
         x:Class="MirageBox.Oasis.Desktop.Views.ManageDataSourcesDialog"
         x:DataType="vm:ManageDataSourcesViewModel"
+        x:CompileBindings="False"
         Width="640" Height="520">
 
     <DockPanel Margin="12">
@@ -54,7 +55,7 @@
                     <ComboBox x:Name="PluginCombo" HorizontalAlignment="Stretch"
                               ItemsSource="{Binding PluginOptions}"
                               SelectedValue="{Binding SelectedSource.Plugin}"
-                              SelectedValueBinding="{Binding Id, x:DataType=vm:PluginOption}">
+                              SelectedValueBinding="{Binding Id}">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:PluginOption">
                                 <StackPanel Spacing="1">
@@ -114,7 +115,7 @@
                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <ComboBox ItemsSource="{Binding Options}"
                                                       SelectedValue="{Binding Value}"
-                                                      SelectedValueBinding="{Binding Value, x:DataType=ds:SourceParamOption}"
+                                                      SelectedValueBinding="{Binding Value}"
                                                       HorizontalAlignment="Stretch">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate x:DataType="ds:SourceParamOption">

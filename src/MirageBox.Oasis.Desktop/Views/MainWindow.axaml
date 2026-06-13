@@ -298,9 +298,9 @@
 
                             <views:ActionEditor DataContext="{Binding SelectedSlot.Press}" />
                             <views:ActionEditor DataContext="{Binding SelectedSlot.DoublePress}"
-                                                IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectedSlot.HasMultiPress, FallbackValue=False}" />
+                                                IsVisible="{Binding $parent[Window].DataContext.SelectedSlot.HasMultiPress, FallbackValue=False}" />
                             <views:ActionEditor DataContext="{Binding SelectedSlot.Hold}"
-                                                IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectedSlot.HasMultiPress, FallbackValue=False}" />
+                                                IsVisible="{Binding $parent[Window].DataContext.SelectedSlot.HasMultiPress, FallbackValue=False}" />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>

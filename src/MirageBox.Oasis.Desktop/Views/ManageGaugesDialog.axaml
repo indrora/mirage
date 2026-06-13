@@ -5,25 +5,27 @@
         xmlns:gauges="using:MirageBox.TinyGauges"
         x:Class="MirageBox.Oasis.Desktop.Views.ManageGaugesDialog"
         x:DataType="vm:ManageGaugesViewModel"
+        x:CompileBindings="False"
+        xmlns:icx="clr-namespace:FluentIcons.Avalonia.Markup;assembly=FluentIcons.Avalonia"
         Width="600" Height="500">
-
     <DockPanel Margin="12">
+        
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-            <Button DockPanel.Dock="Right" Content="Done" Padding="14,4"
+            <Button DockPanel.Dock="Right" Content="{icx:FluentIcon Dismiss}"
                     Classes="accent" Click="OnDone" />
             <TextBlock Text="Manage Gauges" FontWeight="SemiBold" FontSize="16"
                        VerticalAlignment="Center" />
         </DockPanel>
-    <Grid ColumnDefinitions="200,*">
+        
 
         <!-- Gauge list -->
-        <DockPanel Grid.Column="0" Margin="0,0,8,0">
-            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="4" Margin="0,6,0,0">
-                <Button Content="+ Add" Padding="10,4" Command="{Binding AddCommand}" />
-                <Button Content="- Remove" Padding="10,4" Command="{Binding RemoveCommand}" />
-                <Button Content="✎ Rename" Padding="10,4"
-                        IsEnabled="{Binding HasSelection}"
-                        Click="OnRenameGauge" />
+        <DockPanel DockPanel.Dock="Left" MinWidth="200">
+            <StackPanel
+                HorizontalAlignment="Right" FlowDirection="LeftToRight"
+                DockPanel.Dock="Bottom" Orientation="Horizontal">
+                <Button Content="{icx:FluentIcon Icon=GaugeAdd}" Padding="10,4" Command="{Binding AddCommand}" />
+                <Button Content="{icx:FluentIcon Delete}" Padding="10,4" Command="{Binding RemoveCommand}" />
+
             </StackPanel>
             <ListBox ItemsSource="{Binding Names}"
                      SelectedItem="{Binding SelectedName}"
@@ -31,10 +33,18 @@
         </DockPanel>
 
         <!-- Gauge editor -->
-        <Border Grid.Column="1" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="14">
+        <Border DockPanel.Dock="Right" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="14">
             <ScrollViewer>
             <StackPanel Spacing="10" IsVisible="{Binding HasSelection}">
-                <TextBlock Text="{Binding SelectedName}" FontWeight="SemiBold" FontSize="15" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Stretch">
+                    <TextBlock Text="{Binding SelectedName}" FontWeight="SemiBold" FontSize="15"
+                    HorizontalAlignment="Stretch"/>
+                    <Button Content="{icx:FluentIcon Edit}"
+                        IsEnabled="{Binding HasSelection}"
+                        Click="OnRenameGauge"
+
+                        />
+                </StackPanel>
 
                 <StackPanel Spacing="3">
                     <TextBlock Text="Data source" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -173,6 +183,6 @@
             </StackPanel>
             </ScrollViewer>
         </Border>
-    </Grid>
+
     </DockPanel>
 </UserControl>

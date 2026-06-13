@@ -2,7 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:MirageBox.Oasis.Desktop.ViewModels"
              x:Class="MirageBox.Oasis.Desktop.Views.ActionEditor"
-             x:DataType="vm:SlotActionViewModel">
+             x:DataType="vm:SlotActionViewModel"
+             x:CompileBindings="False">
 
     <StackPanel Spacing="4">
         <TextBlock Text="{Binding Label}" Classes="field-label" />
