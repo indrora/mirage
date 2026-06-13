@@ -35,6 +35,33 @@ public partial class DeviceViewModel : ViewModelBase
         _buttons = config.Buttons;
         _tactile = config.Tactile;
         _imageSize = config.ImageSize;
+
+        // The pinned pseudo-scene exists from birth — see GetOrCreatePinnedScene.
+        Scenes.Add(new SceneViewModel("Pinned", true));
+    }
+
+    /// <summary>
+    /// Returns the pinned pseudo-scene, creating it if it is somehow missing.
+    /// <para>
+    /// INVARIANT: every device has exactly one pinned scene at all times, even with
+    /// nothing pinned. A device without one is treated as an invalid (legacy) state and
+    /// repaired on sight. Historically the pinned scene was only created when a loaded
+    /// config already contained pinned buttons; any code that filed a newly pinned slot
+    /// through a null-conditional (pinnedScene?.Buttons.Add(...)) then silently dropped
+    /// the assignment — pinning the first item was impossible. The ctor, LoadScenes,
+    /// and this accessor each enforce the invariant independently; callers should go
+    /// through here rather than hunting Scenes for IsPinned themselves.
+    /// </para>
+    /// </summary>
+    public SceneViewModel GetOrCreatePinnedScene()
+    {
+        var pinned = Scenes.FirstOrDefault(s => s.IsPinned);
+        if (pinned == null)
+        {
+            pinned = new SceneViewModel("Pinned", true);
+            Scenes.Insert(0, pinned);
+        }
+        return pinned;
     }
 
     public void ApplyHardwareProfile(IMirageDevice device)
@@ -52,13 +79,11 @@ public partial class DeviceViewModel : ViewModelBase
         ActiveScene = sceneConfig.ActiveScene;
         Scenes.Clear();
 
-        if (sceneConfig.Pinned.Count > 0)
-        {
-            var pinned = new SceneViewModel("Pinned", true);
-            foreach (var (idx, btn) in sceneConfig.Pinned)
-                pinned.Buttons.Add(DeviceButtonViewModel.FromConfig(idx, btn, true));
-            Scenes.Add(pinned);
-        }
+        // Unconditional, even when the config has nothing pinned: a config without a
+        // pinned bucket is considered invalid and repaired here (see GetOrCreatePinnedScene).
+        var pinned = GetOrCreatePinnedScene();
+        foreach (var (idx, btn) in sceneConfig.Pinned)
+            pinned.Buttons.Add(DeviceButtonViewModel.FromConfig(idx, btn, true));
 
         foreach (var (name, sc) in sceneConfig.List)
         {

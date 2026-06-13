@@ -15,6 +15,18 @@ public partial class ManageGaugesViewModel : ViewModelBase
     private readonly Dictionary<string, DataSourceConfig> _dataSources;
     private readonly RendererRegistry _rendererRegistry;
     private readonly Func<string, IDataSource?>? _liveSourceResolver;
+
+    /// <summary>
+    /// Fired immediately when a rename is committed inside the dialog. The rename
+    /// mutates the LIVE config dictionary on the spot (this dialog edits
+    /// _config.Gauges by reference, and the running engine reads the same instance),
+    /// so anything still holding the old name — slot view models, live preview
+    /// rendering, the device itself — starts failing to resolve the gauge the moment
+    /// RenameSelected returns. The owner uses this to retarget those references right
+    /// away instead of waiting for the dialog to close; the close-time batch pass
+    /// over RenamedGauges remains as an idempotent safety net.
+    /// </summary>
+    private readonly Action<string, string>? _onRenamed;
     private IReadOnlyList<SensorInfo> _currentSensors = [];
 
     // Transient-probe results per source name (config can't change while this
@@ -66,12 +78,14 @@ public partial class ManageGaugesViewModel : ViewModelBase
         IEnumerable<string> dataSourceNames,
         List<string> rendererTypes,
         RendererRegistry rendererRegistry,
-        Func<string, IDataSource?>? liveSourceResolver = null)
+        Func<string, IDataSource?>? liveSourceResolver = null,
+        Action<string, string>? onRenamed = null)
     {
         _gauges = gauges;
         _dataSources = dataSources;
         _rendererRegistry = rendererRegistry;
         _liveSourceResolver = liveSourceResolver;
+        _onRenamed = onRenamed;
         DataSourceNames = new ObservableCollection<string>(dataSourceNames);
         _builtinRendererTypes = rendererTypes;
         RebuildRendererOptions();
@@ -407,6 +421,8 @@ public partial class ManageGaugesViewModel : ViewModelBase
         var idx = Names.IndexOf(oldName);
         Names[idx] = newName;
         SelectedName = newName;
+
+        _onRenamed?.Invoke(oldName, newName);
     }
 
     [RelayCommand]

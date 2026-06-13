@@ -162,12 +162,30 @@ public partial class MainWindowViewModel : ViewModelBase
         catch { }
     }
 
+    /// <summary>
+    /// Adopts attached hardware that no config entry references into the live config
+    /// (standard starter layout, clock on button 0). Keyed on serial and idempotent, so
+    /// it is safe to run on every refresh: first launch with an empty config, Revert,
+    /// Import, and Reset all funnel through RefreshFromConfig and get the same behavior.
+    /// Without this, a discovered device that the config never mentioned was invisible —
+    /// the UI only renders config entries (this was the "blank UI on a fresh machine" bug).
+    /// </summary>
+    private void AdoptDiscoveredHardware()
+    {
+        foreach (var device in _discoveredDevices.Values)
+        {
+            var name = DefaultConfigFactory.AddHardwareDevice(_config, device);
+            if (name != null)
+                StatusText = $"Found new device: {device.Profile.Name} ({device.SerialNumber})";
+        }
+    }
+
     private void RefreshFromConfig()
     {
+        AdoptDiscoveredHardware();
+
         Devices.Clear();
         DataSources.Clear();
-        GaugeNames.Clear();
-        DataSourceNames.Clear();
 
         foreach (var (name, dc) in _config.Devices)
         {
@@ -183,16 +201,58 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         foreach (var (name, ds) in _config.DataSources)
-        {
             DataSources.Add(new DataSourceViewModel(name, ds));
-            DataSourceNames.Add(name);
-        }
 
-        foreach (var name in _config.Gauges.Keys)
-            GaugeNames.Add(name);
+        // Name lists are diff-synced, never Clear()ed: see MergeNames for why.
+        SyncNames(DataSourceNames, _config.DataSources.Keys);
+        SyncNames(GaugeNames, _config.Gauges.Keys);
 
         if (Devices.Count > 0)
             SelectedDevice = Devices[0];
+    }
+
+    /// <summary>
+    /// Brings <paramref name="target"/> up to date with <paramref name="desired"/> by
+    /// inserting missing names and reordering existing ones — WITHOUT removing anything.
+    /// Stale names drift to the tail and are dropped later by <see cref="PruneNames"/>.
+    /// <para>
+    /// The split exists because these collections back ComboBoxes whose SelectedItem is
+    /// two-way bound into view models (e.g. the slot editor's gauge picker →
+    /// SelectedSlot.GaugeName). If the selected name leaves the collection even for an
+    /// instant — which the old Clear()-then-re-add pattern guaranteed — the ComboBox
+    /// resets its selection to null and that null is written back through the binding,
+    /// silently unassigning the gauge and hot-applying the loss to the device.
+    /// Add-then-prune means a name only ever disappears when it is genuinely gone.
+    /// </para>
+    /// </summary>
+    private static void MergeNames(ObservableCollection<string> target, IEnumerable<string> desired)
+    {
+        int insertAt = 0;
+        foreach (var name in desired)
+        {
+            var existingIndex = target.IndexOf(name);
+            if (existingIndex < 0)
+                target.Insert(insertAt, name);
+            else if (existingIndex != insertAt)
+                target.Move(existingIndex, insertAt);
+            insertAt++;
+        }
+    }
+
+    /// <summary>Removes names absent from <paramref name="desired"/>. See <see cref="MergeNames"/>.</summary>
+    private static void PruneNames(ObservableCollection<string> target, IEnumerable<string> desired)
+    {
+        var keep = new HashSet<string>(desired);
+        for (int i = target.Count - 1; i >= 0; i--)
+            if (!keep.Contains(target[i]))
+                target.RemoveAt(i);
+    }
+
+    /// <summary>Merge + prune in one step, for refreshes with no rename pass in between.</summary>
+    private static void SyncNames(ObservableCollection<string> target, IEnumerable<string> desired)
+    {
+        MergeNames(target, desired);
+        PruneNames(target, desired);
     }
 
     partial void OnSelectedDeviceChanged(DeviceViewModel? value)
@@ -231,6 +291,13 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void OnSlotPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // The instant a slot is pinned, materialize the pinned pseudo-scene so the
+        // upcoming flush has somewhere to file the button. Without this (and the
+        // matching guarantee in FlushSlotsToScene) a first-ever pin was dropped on
+        // the floor by pinnedScene?.Buttons.Add(...) against a null scene.
+        if (e.PropertyName == nameof(ButtonSlotViewModel.IsPinned))
+            SelectedDevice?.GetOrCreatePinnedScene();
+
         if (e.PropertyName is not (nameof(ButtonSlotViewModel.IsSelected)
             or nameof(ButtonSlotViewModel.Preview)
             or nameof(ButtonSlotViewModel.PreviewSourceLine)))
@@ -263,7 +330,7 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedSlot = null;
         if (SelectedDevice == null) return;
 
-        var pinnedScene = SelectedDevice.Scenes.FirstOrDefault(s => s.IsPinned);
+        var pinnedScene = SelectedDevice.GetOrCreatePinnedScene();
         var activeScene = SelectedScene;
 
         for (int i = 0; i < SelectedDevice.Buttons; i++)
@@ -317,9 +384,11 @@ public partial class MainWindowViewModel : ViewModelBase
         if (SelectedDevice == null || _lastFlushedScene == null) return;
         if (DisplaySlots.Count == 0) return;
 
-        var pinnedScene = SelectedDevice.Scenes.FirstOrDefault(s => s.IsPinned);
+        // Never a null lookup: a missing pinned scene used to make the IsPinned branch
+        // below silently discard the button (the pin-never-lands bug).
+        var pinnedScene = SelectedDevice.GetOrCreatePinnedScene();
 
-        pinnedScene?.Buttons.Clear();
+        pinnedScene.Buttons.Clear();
         _lastFlushedScene.Buttons.Clear();
         _lastFlushedScene.TactileButtons.Clear();
         _lastFlushedScene.Encoders.Clear();
@@ -330,7 +399,7 @@ public partial class MainWindowViewModel : ViewModelBase
             var btn = SlotToButton(slot, slot.GaugeName, slot.IsPinned);
 
             if (slot.IsPinned)
-                pinnedScene?.Buttons.Add(btn);
+                pinnedScene.Buttons.Add(btn);
             else
                 _lastFlushedScene.Buttons.Add(btn);
         }
@@ -354,7 +423,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public ManageGaugesViewModel CreateManageGaugesViewModel() =>
         new(_config.Gauges, _config.DataSources, DataSourceNames, RendererTypes, _rendererRegistry,
-            name => _engine?.GetDataSource(name));
+            name => _engine?.GetDataSource(name),
+            // Renames mutate the live gauge dictionary the moment they're committed in
+            // the dialog, so retarget slots/scenes/previews right away — otherwise every
+            // tile (and hardware button) holding the old name renders dark until the
+            // dialog closes. The close-time RefreshGaugeNames pass is now a no-op net.
+            onRenamed: (oldName, newName) => RefreshGaugeNames([(oldName, newName)]));
 
     public ManageDataSourcesViewModel CreateManageDataSourcesViewModel() =>
         new(_config.DataSources, name => _engine?.GetDataSource(name));
@@ -373,19 +447,31 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public void RefreshGaugeNames()
+    /// <summary>
+    /// Refreshes GaugeNames after the Manage Gauges dialog closes, in three phases so
+    /// the selected slot's gauge survives (see <see cref="MergeNames"/> for the binding
+    /// hazard this avoids):
+    ///   1. merge — new names become selectable, nothing is removed yet;
+    ///   2. renames — slots/buttons retarget old → new while BOTH names are still in the
+    ///      collection, so the combobox follows the rename instead of resetting to null;
+    ///   3. prune — only names whose gauge was genuinely deleted disappear, and only
+    ///      then does a slot pointing at one of them legitimately lose its selection.
+    /// </summary>
+    public void RefreshGaugeNames(IReadOnlyList<(string Old, string New)>? renames = null)
     {
-        GaugeNames.Clear();
-        foreach (var name in _config.Gauges.Keys)
-            GaugeNames.Add(name);
+        MergeNames(GaugeNames, _config.Gauges.Keys);
+        if (renames is { Count: > 0 })
+            ApplyGaugeRenames(renames);
+        PruneNames(GaugeNames, _config.Gauges.Keys);
     }
 
     /// <summary>
-    /// Retargets every scene button and live slot after gauges were renamed in
-    /// the Manage Gauges dialog. Call after <see cref="RefreshGaugeNames"/> so
-    /// slot comboboxes can re-select the new names.
+    /// Retargets every scene button and live slot after gauges were renamed in the
+    /// Manage Gauges dialog. Runs inside <see cref="RefreshGaugeNames"/> between the
+    /// merge and prune phases — both the old and new names must be present in
+    /// GaugeNames while this executes (see there for ordering rationale).
     /// </summary>
-    public void ApplyGaugeRenames(IReadOnlyList<(string Old, string New)> renames)
+    private void ApplyGaugeRenames(IReadOnlyList<(string Old, string New)> renames)
     {
         if (renames.Count == 0) return;
 
@@ -412,13 +498,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public void RefreshDataSourceNames()
     {
-        DataSourceNames.Clear();
+        // Same diff-sync as GaugeNames (see MergeNames): today nothing two-way binds a
+        // SelectedItem to DataSourceNames, but keeping the collections on one pattern
+        // means a future picker can't reintroduce the silent-unassign bug.
+        SyncNames(DataSourceNames, _config.DataSources.Keys);
+
         DataSources.Clear();
         foreach (var (name, ds) in _config.DataSources)
-        {
-            DataSourceNames.Add(name);
             DataSources.Add(new DataSourceViewModel(name, ds));
-        }
     }
 
     public void SwapSlots(string slotType, int fromIndex, int toIndex)
@@ -727,12 +814,23 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task ResetConfig()
     {
-        var fresh = new OasisConfig();
-        // Physical hardware is never removed — carry it over with a blank layout.
+        // Standard starter layout for whatever is plugged in right now (clock on button 0,
+        // builtin clock source/gauge) — the same defaults a fresh install gets.
+        var fresh = DefaultConfigFactory.Create(_discoveredDevices.Values);
+
+        // Physical hardware is never removed — config entries for devices that are not
+        // currently attached (unplugged, other machine) carry over with a blank layout.
         foreach (var (name, dev) in _config.Devices.Where(kv => !kv.Value.Simulator))
         {
-            fresh.Devices[name] = dev;
-            fresh.Scenes[name] = new DeviceSceneConfig
+            if (dev.Serial != null && fresh.Devices.Values.Any(d => d.Serial == dev.Serial))
+                continue;
+
+            var key = name;
+            for (int i = 2; fresh.Devices.ContainsKey(key); i++)
+                key = $"{name}{i}";
+
+            fresh.Devices[key] = dev;
+            fresh.Scenes[key] = new DeviceSceneConfig
             {
                 ActiveScene = "main",
                 List = new Dictionary<string, SceneConfig> { ["main"] = new() },

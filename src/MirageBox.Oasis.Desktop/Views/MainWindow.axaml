@@ -128,7 +128,7 @@
                     </CommandBarButton.Flyout>
                 </CommandBarButton>
                 <CommandBarSeparator />
-                <CommandBarButton Label="Save" Icon="{icx:FluentIcon Icon=Save}" />
+                <CommandBarButton Command="{Binding SaveConfigCommand}" Label="Save" Icon="{icx:FluentIcon Icon=Save}" />
             </CommandBar.PrimaryCommands>
             <CommandBar.SecondaryCommands>
                 <CommandBarButton Command="{Binding RevertConfigCommand}"
@@ -184,8 +184,7 @@
                                             Classes.pinned="{Binding IsPinned}"
                                             Classes.empty="{Binding IsEmpty}"
                                             Tapped="OnSlotTapped"
-                                            PointerPressed="OnSlotPointerPressed"
-                                            DragDrop.AllowDrop="True">
+                                            >
                                         <StackPanel VerticalAlignment="Center" Spacing="4">
                                             <Border Width="80" Height="80" CornerRadius="4"
                                                     HorizontalAlignment="Center"

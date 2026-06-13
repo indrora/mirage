@@ -15,13 +15,31 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        AddHandler(DragDrop.DropEvent, OnSlotDrop);
-        AddHandler(DragDrop.DragOverEvent, OnSlotDragOver);
+        Opened += async (_, _) => await OfferSimulatorIfNoDevices();
         Closing += async (_, _) =>
         {
             if (DataContext is MainWindowViewModel vm)
                 await vm.ShutdownAsync();
         };
+    }
+
+    /// <summary>
+    /// A config with zero devices leaves the editor unusable (nothing to select, no slots).
+    /// Attached hardware is adopted automatically by the view model; this covers the
+    /// remaining case — no config entries AND no hardware — by offering a simulator so a
+    /// first run always lands somewhere usable. Also re-checked after Reset, which wipes
+    /// simulators.
+    /// </summary>
+    private async Task OfferSimulatorIfNoDevices()
+    {
+        if (DataContext is not MainWindowViewModel vm || vm.Devices.Count > 0) return;
+
+        var confirmed = await ConfirmDialog.ShowAsync(this,
+            "No devices found",
+            "No control surface hardware was detected and no devices are configured. " +
+            "Add a simulator device to get started?");
+        if (confirmed)
+            vm.AddDeviceCommand.Execute(null);
     }
 
     private void OnSlotTapped(object? sender, TappedEventArgs e)
@@ -30,58 +48,6 @@ public partial class MainWindow : Window
             && DataContext is MainWindowViewModel vm)
         {
             vm.SelectedSlot = slot;
-        }
-    }
-
-    private async void OnSlotPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is not Control { DataContext: ButtonSlotViewModel slot }) return;
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
-
-        if (DataContext is MainWindowViewModel vm)
-            vm.SelectedSlot = slot;
-
-        if (slot.IsEmpty) return;
-
-        var data = new DataTransfer();
-        var item = new DataTransferItem();
-        item.Set(SlotIndexFormat, slot.Index.ToString());
-        item.Set(SlotTypeFormat, slot.SlotType);
-        data.Add(item);
-
-        await DragDrop.DoDragDropAsync(e, data, DragDropEffects.Move);
-    }
-
-    private void OnSlotDragOver(object? sender, DragEventArgs e)
-    {
-        var target = FindSlotFromEvent(e);
-        if (target == null || !e.DataTransfer.Contains(SlotIndexFormat))
-        {
-            e.DragEffects = DragDropEffects.None;
-            return;
-        }
-
-        var sourceType = e.DataTransfer.TryGetValue(SlotTypeFormat);
-        if (sourceType != target.SlotType)
-        {
-            e.DragEffects = DragDropEffects.None;
-            return;
-        }
-
-        e.DragEffects = DragDropEffects.Move;
-    }
-
-    private void OnSlotDrop(object? sender, DragEventArgs e)
-    {
-        var target = FindSlotFromEvent(e);
-        if (target == null) return;
-        if (DataContext is not MainWindowViewModel vm) return;
-
-        var sourceIndexStr = e.DataTransfer.TryGetValue(SlotIndexFormat);
-        var sourceType = e.DataTransfer.TryGetValue(SlotTypeFormat);
-        if (sourceType == target.SlotType && int.TryParse(sourceIndexStr, out var sourceIndex))
-        {
-            vm.SwapSlots(sourceType, sourceIndex, target.Index);
         }
     }
 
@@ -104,11 +70,8 @@ public partial class MainWindow : Window
         var dialog = new ManageGaugesDialog { DataContext = dialogVm };
         await dialog.ShowAsync();
         
-        
-        
         dialogVm.SaveAll();
-        vm.RefreshGaugeNames();
-        vm.ApplyGaugeRenames(dialogVm.RenamedGauges);
+        vm.RefreshGaugeNames(dialogVm.RenamedGauges);
     }
 
     private async void OnManageDataSources(object? sender, RoutedEventArgs e)
@@ -157,6 +120,9 @@ public partial class MainWindow : Window
             "This wipes all gauges, data sources, scenes and simulators back to a default layout. " +
             "Physical hardware is kept. Nothing is written to disk until you Save.");
         if (confirmed)
+        {
             await vm.ResetConfigCommand.ExecuteAsync(null);
+            await OfferSimulatorIfNoDevices();
+        }
     }
 }
