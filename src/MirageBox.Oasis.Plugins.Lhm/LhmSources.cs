@@ -3,6 +3,9 @@ using MirageBox.Oasis.Core.DataSources;
 
 [assembly: DataSourcePlugin("lhm", "LibreHardwareMonitor",
     "Hardware sensors via LibreHardwareMonitorLib")]
+// Built win-x64 (LibreHardwareMonitorLib is Windows-only); the host reads this
+// metadata-only and refuses to even attempt loading it on other platforms.
+[assembly: PluginPlatform(PluginPlatform.Windows)]
 
 namespace MirageBox.Oasis.Plugins.Lhm;
 

@@ -19,6 +19,39 @@ public class DataSourcePluginAttribute : Attribute
     }
 }
 
+/// <summary>
+/// OS platforms a plugin assembly can run on. Flags so a plugin can declare
+/// more than one (e.g. <c>Windows | Linux</c>). Bit values are fixed because
+/// the loader reads them out of assembly metadata as raw integers (see
+/// <see cref="PluginPlatformAttribute"/>) — don't renumber them.
+/// </summary>
+[Flags]
+public enum PluginPlatform
+{
+    Windows = 1,
+    MacOS = 2,
+    Linux = 4,
+    Any = Windows | MacOS | Linux,
+}
+
+/// <summary>
+/// Declares which OS platforms a plugin assembly supports. The host reads this
+/// metadata-only (via MetadataLoadContext) BEFORE attempting a real load, so a
+/// platform-incompatible / RID-specific native plugin is skipped without ever
+/// hitting the architecture-bound binder that would otherwise throw
+/// FileLoadException. Absence of the attribute is treated as <see cref="PluginPlatform.Any"/>.
+/// </summary>
+[AttributeUsage(AttributeTargets.Assembly)]
+public sealed class PluginPlatformAttribute : Attribute
+{
+    public PluginPlatform Platforms { get; }
+
+    public PluginPlatformAttribute(PluginPlatform platforms)
+    {
+        Platforms = platforms;
+    }
+}
+
 [AttributeUsage(AttributeTargets.Class)]
 public class DataSourceAttribute : Attribute
 {

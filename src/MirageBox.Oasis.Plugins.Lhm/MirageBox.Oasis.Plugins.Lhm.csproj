@@ -25,8 +25,12 @@
     </ProjectReference>
   </ItemGroup>
 
-  <!-- Drop the plugin and its dependencies into the desktop app's plugins/ dir -->
-  <Target Name="CopyToHostPlugins" AfterTargets="Build">
+  <!-- Drop the plugin and its dependencies into the desktop app's plugins/ dir.
+       Windows-only: the output is win-x64 and would crash the Avalonia previewer
+       (and anything else preloading the plugins dir) on other hosts. The target
+       only copies, never cleans, so a stale copy must be removed by hand. -->
+  <Target Name="CopyToHostPlugins" AfterTargets="Build"
+          Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <ItemGroup>
       <!-- Exclude assemblies the host already ships (Mirage libs and their deps) -->
       <PluginFiles Include="$(TargetDir)*.dll"

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Security.Principal;
 using MirageBox.Oasis.Core.DataSources.Builtin;
@@ -56,6 +57,68 @@ public static class PluginLoader
         };
     }
 
+    /// <summary>
+    /// Builds a metadata-only inspection context over the plugin dir. We list the
+    /// runtime's BCL assemblies plus the plugin dir plus this Core assembly (so the
+    /// PluginPlatform enum type referenced by a plugin resolves), deduped by simple
+    /// name — PathAssemblyResolver throws on duplicate names, and the plugin dir can
+    /// ship its own copies of framework assemblies (System.Management, System.IO.Ports…)
+    /// that also live in the runtime dir. Runtime copy wins.
+    /// </summary>
+    private static MetadataLoadContext CreateMetadataContext(string pluginDir)
+    {
+        var byName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in Directory.GetFiles(RuntimeEnvironment.GetRuntimeDirectory(), "*.dll"))
+            byName[Path.GetFileNameWithoutExtension(path)] = path;
+        if (Directory.Exists(pluginDir))
+            foreach (var path in Directory.GetFiles(pluginDir, "*.dll"))
+                byName.TryAdd(Path.GetFileNameWithoutExtension(path), path);
+        var coreAsm = typeof(PluginPlatformAttribute).Assembly.Location;
+        byName.TryAdd(Path.GetFileNameWithoutExtension(coreAsm), coreAsm);
+
+        return new MetadataLoadContext(new PathAssemblyResolver(byName.Values));
+    }
+
+    /// <summary>
+    /// Reads a plugin's [PluginPlatform] attribute from metadata alone — no binding,
+    /// no execution — so a RID/architecture-incompatible assembly (e.g. the win-x64
+    /// LHM plugin on macOS) is rejected here, before any real LoadFromAssemblyPath
+    /// that would throw FileLoadException. Unmarked assemblies are treated as Any.
+    /// On any inability to read the metadata we return true and let the normal load
+    /// path's error handling deal with it rather than silently hiding a plugin.
+    /// </summary>
+    private static bool IsLoadableOnThisPlatform(string dllPath, MetadataLoadContext metadata)
+    {
+        PluginPlatform current;
+        if (OperatingSystem.IsWindows()) current = PluginPlatform.Windows;
+        else if (OperatingSystem.IsMacOS()) current = PluginPlatform.MacOS;
+        else if (OperatingSystem.IsLinux()) current = PluginPlatform.Linux;
+        else return true; // unknown host: don't second-guess
+
+        try
+        {
+            var assembly = metadata.LoadFromAssemblyPath(Path.GetFullPath(dllPath));
+            var attr = assembly.GetCustomAttributesData().FirstOrDefault(
+                a => a.AttributeType.FullName == typeof(PluginPlatformAttribute).FullName);
+            if (attr == null) return true; // unmarked => runs anywhere
+
+            // The enum ctor arg comes through as its boxed underlying integer.
+            var declared = (PluginPlatform)Convert.ToInt32(attr.ConstructorArguments[0].Value);
+            return (declared & current) != 0;
+        }
+        catch (BadImageFormatException)
+        {
+            // Native or non-.NET dll shipped beside a plugin — ScanAssembly skips it.
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(
+                $"[plugins] Could not read platform metadata for {Path.GetFileName(dllPath)}: {ex.Message}");
+            return true;
+        }
+    }
+
     /// <summary>Whether the current process has administrative elevation.</summary>
     public static bool IsElevated
     {
@@ -87,10 +150,17 @@ public static class PluginLoader
             if (Directory.Exists(dir))
             {
                 EnsureDependencyResolver(dir);
+                using var metadata = CreateMetadataContext(dir);
                 foreach (var dllPath in Directory.EnumerateFiles(dir, "*.dll"))
                 {
                     try
                     {
+                        if (!IsLoadableOnThisPlatform(dllPath, metadata))
+                        {
+                            Console.Error.WriteLine(
+                                $"[plugins] Skipping {Path.GetFileName(dllPath)}: not supported on this platform");
+                            continue;
+                        }
                         ScanAssembly(dllPath, found);
                     }
                     catch (BadImageFormatException)
@@ -157,6 +227,11 @@ public static class PluginLoader
         {
             var dllPath = Path.Combine(dir, pluginName + ".dll");
             if (!File.Exists(dllPath)) continue;
+
+            using (var metadata = CreateMetadataContext(dir))
+            {
+                if (!IsLoadableOnThisPlatform(dllPath, metadata)) continue;
+            }
 
             var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(dllPath));
             var sourceType = assembly.GetExportedTypes()
