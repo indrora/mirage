@@ -51,3 +51,7 @@ TestResults/
 # OS files
 .DS_Store
 Thumbs.db
+
+*.~lock~
+art/logo-both.af~lock~
+art/logo.af~lock~
